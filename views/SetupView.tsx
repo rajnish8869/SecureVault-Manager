@@ -50,18 +50,18 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 animate-in fade-in duration-500">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-dvh flex items-center justify-center p-6 animate-in fade-in duration-500 bg-vault-950">
+      <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-4">
             <div className="w-20 h-20 mx-auto bg-vault-800 rounded-2xl flex items-center justify-center text-vault-accent shadow-xl border border-vault-700">
                 <Icons.Shield />
             </div>
-            <h1 className="text-2xl font-bold">Welcome to SecureVault</h1>
+            <h1 className="text-2xl font-bold text-white">Welcome to SecureVault</h1>
             <p className="text-sm text-vault-400">Choose how you want to lock your files.</p>
         </div>
 
         {targetType === 'PASSWORD' ? (
-            <Card className="p-6 space-y-6">
+            <Card className="p-6 space-y-6 shadow-2xl">
                 <div className="grid grid-cols-2 gap-3">
                     <button
                         onClick={() => { setTargetType('PIN'); setPassword(''); }}
@@ -69,7 +69,7 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
                     >
                         PIN Code
                     </button>
-                    <button className="p-3 rounded-lg border text-sm font-bold transition-all bg-vault-accent/20 border-vault-accent text-white">
+                    <button className="p-3 rounded-lg border text-sm font-bold transition-all bg-vault-accent/20 border-vault-accent text-white shadow-inner">
                         Password
                     </button>
                 </div>
@@ -83,15 +83,15 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
                         <PasswordInput value={confirm} onChange={setConfirm} placeholder="Repeat to confirm" />
                     </div>
                 </div>
-                <Button className="w-full" onClick={handlePasswordSubmit} disabled={!password || !confirm || isProcessing}>
+                <Button className="w-full shadow-lg shadow-blue-500/20" onClick={handlePasswordSubmit} disabled={!password || !confirm || isProcessing}>
                     {isProcessing ? 'Initializing...' : 'Set & Continue'}
                 </Button>
             </Card>
         ) : (
             <div className="space-y-8 animate-in slide-in-from-right-8 duration-300">
                  <div className="flex justify-center mb-6">
-                      <div className="flex bg-vault-800 p-1 rounded-lg">
-                          <button className="px-4 py-1.5 rounded bg-vault-accent text-white text-xs font-bold shadow">PIN Code</button>
+                      <div className="flex bg-vault-800 p-1 rounded-lg border border-vault-700">
+                          <button className="px-4 py-1.5 rounded bg-vault-accent text-white text-xs font-bold shadow-sm">PIN Code</button>
                           <button onClick={() => { setTargetType('PASSWORD'); setPassword(''); }} className="px-4 py-1.5 rounded text-vault-400 hover:text-white text-xs font-bold transition-colors">Password</button>
                       </div>
                   </div>

@@ -16,7 +16,6 @@ export const FileViewer: React.FC<{
     const isArchive = item.mimeType.includes('zip') || item.mimeType.includes('rar');
     const isApk = item.originalName.endsWith('.apk');
 
-    // Text Content State
     const [textContent, setTextContent] = useState<string>('Loading...');
 
     useEffect(() => {
@@ -31,64 +30,61 @@ export const FileViewer: React.FC<{
     if (!uri) return null;
 
     return (
-        <div className="fixed inset-0 bg-black z-[60] flex flex-col animate-in slide-in-from-bottom-10 duration-200">
+        <div className="fixed inset-0 bg-black z-[60] flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 bg-vault-900 border-b border-vault-800 z-10">
-                <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="p-2 bg-vault-800 rounded-lg text-vault-400">
-                        {getFileIcon(item.mimeType, item.originalName)}
+            <div className="pt-safe bg-vault-950/90 backdrop-blur-md border-b border-vault-800 z-10 flex flex-col shadow-lg">
+                <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="p-2 bg-vault-800 rounded-lg text-vault-400 border border-vault-700">
+                            {getFileIcon(item.mimeType, item.originalName)}
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="font-bold text-white truncate max-w-[200px] text-sm leading-tight">{item.originalName}</h3>
+                            <p className="text-[10px] text-green-400 flex items-center gap-1 font-mono uppercase tracking-wide mt-0.5">
+                                <Icons.Lock /> Secure View
+                            </p>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <h3 className="font-bold text-white truncate max-w-[200px]">{item.originalName}</h3>
-                        <p className="text-xs text-green-400 flex items-center gap-1">
-                            <Icons.Lock /> Secure View
-                        </p>
-                    </div>
+                    <button onClick={onClose} className="px-4 py-2 rounded-lg bg-vault-800 text-white hover:bg-vault-700 transition font-medium text-sm border border-vault-700">
+                        Close
+                    </button>
                 </div>
-                <button onClick={onClose} className="p-2 rounded-full bg-vault-800 text-white hover:bg-vault-700 transition">
-                    Close
-                </button>
             </div>
 
             {/* Content Body */}
-            <div className="flex-1 overflow-auto flex items-center justify-center bg-black/90 p-2 relative">
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-black p-4 relative pb-safe">
                 
-                {/* 1. Image Viewer */}
                 {isImage && (
-                    <img src={uri} alt="Secure Preview" className="max-w-full max-h-full object-contain shadow-2xl" />
+                    <img src={uri} alt="Secure Preview" className="max-w-full max-h-full object-contain drop-shadow-2xl" />
                 )}
 
-                {/* 2. Video Viewer */}
                 {isVideo && (
                     <video src={uri} controls autoPlay className="max-w-full max-h-full" />
                 )}
 
-                {/* 3. Text Viewer */}
                 {isText && (
-                    <div className="w-full h-full bg-white text-black p-4 rounded overflow-auto font-mono text-sm whitespace-pre-wrap">
+                    <div className="w-full max-w-2xl mx-auto h-full bg-white text-black p-6 rounded-lg overflow-auto font-mono text-xs md:text-sm whitespace-pre-wrap shadow-xl">
                         {textContent}
                     </div>
                 )}
 
-                {/* 4. PDF Viewer */}
                 {isPdf && (
-                    <iframe src={uri} className="w-full h-full bg-white border-none rounded" title="PDF Viewer" />
+                    <iframe src={uri} className="w-full h-full bg-white border-none rounded-lg" title="PDF Viewer" />
                 )}
 
-                {/* 5. APK Metadata Viewer */}
                 {isApk && (
-                    <div className="w-full max-w-sm bg-vault-800 p-6 rounded-2xl border border-vault-700 text-center space-y-6">
-                        <div className="w-24 h-24 mx-auto bg-green-500/20 rounded-2xl flex items-center justify-center text-green-500">
+                    <div className="w-full max-w-sm bg-vault-900 p-8 rounded-3xl border border-vault-800 text-center space-y-6 shadow-2xl">
+                        <div className="w-24 h-24 mx-auto bg-green-500/10 rounded-3xl flex items-center justify-center text-green-500 border border-green-500/20">
                             <Icons.Android />
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-white">{item.originalName}</h2>
                             <p className="text-sm text-vault-400">Android Application Package</p>
                         </div>
-                        <div className="bg-vault-900 rounded-xl p-4 text-left space-y-3 text-sm border border-vault-700">
+                        <div className="bg-vault-950 rounded-xl p-4 text-left space-y-3 text-sm border border-vault-800">
                              <div className="flex justify-between border-b border-vault-800 pb-2">
                                 <span className="text-vault-500">Size</span>
-                                <span className="text-white">{(item.size / 1024 / 1024).toFixed(2)} MB</span>
+                                <span className="text-white font-mono">{(item.size / 1024 / 1024).toFixed(2)} MB</span>
                              </div>
                              <div className="flex justify-between border-b border-vault-800 pb-2">
                                 <span className="text-vault-500">Package</span>
@@ -99,16 +95,15 @@ export const FileViewer: React.FC<{
                                 <span className="text-white">1.0.0 (Build 1)</span>
                              </div>
                         </div>
-                        <p className="text-xs text-amber-500/80 bg-amber-500/10 p-3 rounded-lg">
+                        <p className="text-xs text-amber-500/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/10">
                            Installation from secure vault is restricted for security. Export to install.
                         </p>
                     </div>
                 )}
 
-                {/* 6. Archive Viewer (List Mock) */}
                 {isArchive && (
-                    <div className="w-full max-w-md bg-vault-800 rounded-2xl border border-vault-700 flex flex-col max-h-[80vh]">
-                         <div className="p-4 border-b border-vault-700 flex items-center gap-3">
+                    <div className="w-full max-w-md bg-vault-900 rounded-2xl border border-vault-800 flex flex-col max-h-[80vh] shadow-2xl">
+                         <div className="p-4 border-b border-vault-800 flex items-center gap-3 bg-vault-800/50 rounded-t-2xl">
                             <div className="text-yellow-500"><Icons.Zip /></div>
                             <div>
                                 <h4 className="font-bold text-white">Archive Contents</h4>
@@ -116,9 +111,8 @@ export const FileViewer: React.FC<{
                             </div>
                          </div>
                          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                             {/* Mock File List */}
                              {[1,2,3,4,5].map(i => (
-                                 <div key={i} className="flex items-center gap-3 p-3 hover:bg-vault-700/50 rounded-lg">
+                                 <div key={i} className="flex items-center gap-3 p-3 hover:bg-vault-800/50 rounded-lg transition-colors">
                                      <div className="text-vault-500"><Icons.File /></div>
                                      <span className="text-sm text-gray-300">internal_file_{i}.dat</span>
                                  </div>
@@ -127,10 +121,9 @@ export const FileViewer: React.FC<{
                     </div>
                 )}
 
-                {/* Fallback */}
                 {!isImage && !isVideo && !isText && !isPdf && !isApk && !isArchive && (
-                     <div className="text-center p-8 bg-vault-800 rounded-xl border border-vault-700">
-                         <div className="w-16 h-16 bg-vault-700 rounded-full flex items-center justify-center mx-auto mb-4 text-vault-400">
+                     <div className="text-center p-8 bg-vault-900 rounded-xl border border-vault-800 shadow-xl">
+                         <div className="w-16 h-16 bg-vault-800 rounded-full flex items-center justify-center mx-auto mb-4 text-vault-400">
                             <Icons.Alert />
                          </div>
                          <h3 className="text-white font-bold mb-2">Preview Not Supported</h3>

@@ -23,7 +23,7 @@ export default function App() {
 
   // Hooks
   const auth = useAuth();
-  const vault = useVault(password);
+  const vault = useVault(password); // This now returns the full vault handle
   const intruder = useIntruder();
 
   // Dialog System
@@ -44,14 +44,6 @@ export default function App() {
   // 1. Initialization
   useEffect(() => {
     if (!auth.isInitialized) {
-       // Check if truly not initialized or just loading
-       // useAuth runs checkInit on mount. If it settles false, we go to SETUP.
-       // We need a way to know if checkInit finished.
-       // For now, simple timeout fallback or rely on isInitialized being false initially.
-       // Better: auth.checkInit is async.
-       // Let's assume useAuth initial state handling is sufficient, 
-       // but we need to know when it's done.
-       // We can watch for a change or check once manually.
        SecureVault.isInitialized().then(res => {
            if(res.initialized) {
                auth.checkInit().then(() => setAppState('LOCKED'));
@@ -73,6 +65,7 @@ export default function App() {
   useEffect(() => {
       const handleVis = () => {
           if (document.hidden && !isPickingFile.current && appState !== 'SETUP' && appState !== 'LOADING') {
+              SecureVault.lockVault();
               setAppState('LOCKED');
               setPassword(null);
               setIsDecoySession(false);
@@ -126,27 +119,6 @@ export default function App() {
       if(pw) handleUnlock(pw);
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files?.length) return;
-      isPickingFile.current = false;
-      const files = Array.from(e.target.files);
-      setIsProcessing(true);
-      setProgress(0);
-      
-      let success = 0;
-      for (let i = 0; i < files.length; i++) {
-          setProcessStatus(`Encrypting ${files[i].name}`);
-          try {
-              await vault.importFile(files[i]);
-              success++;
-          } catch(e) { console.error(e); }
-          setProgress(((i+1)/files.length)*100);
-      }
-      setIsProcessing(false);
-      e.target.value = '';
-      if(success < files.length) showAlert("Import Report", `Imported ${success}/${files.length}`);
-  };
-
   const handleView = async (item: any) => {
       setIsProcessing(true);
       try {
@@ -157,27 +129,6 @@ export default function App() {
       } finally {
           setIsProcessing(false);
       }
-  };
-
-  const handleDelete = (id: string) => {
-      showConfirm("Delete File?", "This cannot be undone.", async () => {
-          await vault.deleteFile(id);
-      }, 'danger');
-  };
-
-  const handleExport = (id: string) => {
-      showConfirm("Export File?", "File will be decrypted to public storage.", async () => {
-          setIsProcessing(true);
-          setProcessStatus("Decrypting...");
-          try {
-              const res = await vault.exportFile(id);
-              showAlert("Success", `Saved to: ${res.exportedPath}`);
-          } catch(e: any) {
-              showAlert("Error", e.message);
-          } finally {
-              setIsProcessing(false);
-          }
-      });
   };
 
   const handleUpdateCreds = async (old: string, newPw: string, type: any) => {
@@ -258,15 +209,20 @@ export default function App() {
 
         {appState === 'VAULT' && (
             <VaultDashboard 
-                items={vault.items}
+                vault={vault as any} // Cast because TypeScript check might fail on initial render if vault is loading or types mismatch slightly. Actually vault hook returns match interface.
                 isDecoy={isDecoySession}
-                onImport={handleImport}
-                onDelete={handleDelete}
-                onExport={handleExport}
                 onView={handleView}
-                onLock={() => { setAppState('LOCKED'); setPassword(null); }}
+                onLock={() => { 
+                    SecureVault.lockVault(); 
+                    setAppState('LOCKED'); 
+                    setPassword(null); 
+                }}
                 onSettings={() => setAppState('SETTINGS')}
                 onPickStart={() => isPickingFile.current = true}
+                onProcessing={(loading, status) => {
+                    setIsProcessing(loading);
+                    if (status) setProcessStatus(status);
+                }}
             />
         )}
 
@@ -280,14 +236,14 @@ export default function App() {
                 onUpdateCredentials={handleUpdateCreds}
                 onReset={handleReset}
                 onToggleBio={() => auth.toggleBiometrics(!auth.bioEnabled, password!)}
-                onSetupDecoy={(p, c) => auth.setupDecoy(p, password!)} // Assuming master pass is current session
+                onSetupDecoy={(p, c) => auth.setupDecoy(p, password!)} 
                 onRemoveDecoy={() => auth.removeDecoy(password!)}
                 onOpenIntruder={openIntruderSettings}
                 isProcessing={isProcessing}
             />
         )}
 
-        {/* Intruder Settings Modal (kept internal to App or split to view? Kept here for simplicity of modal reuse) */}
+        {/* Intruder Settings Modal */}
         <Modal isOpen={showIntruderModal}>
             <div className="bg-vault-800 p-6 rounded-2xl w-full max-w-sm space-y-6 border border-vault-700">
                 <div className="flex justify-between items-center">

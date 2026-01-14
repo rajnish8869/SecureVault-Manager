@@ -17,23 +17,18 @@ const EvidenceThumbnail: React.FC<{ item: VaultItem; onClick: () => void }> = ({
         let active = true;
         const load = async () => {
             try {
-                // Attempt to preview. SecureVaultPlugin uses cached key if session is active.
                 const { uri } = await SecureVault.previewFile({ id: item.id, password: '' });
                 if (active) setSrc(uri);
-            } catch (e) {
-                // If failed (e.g. session lost), generic icon shows
-            }
+            } catch (e) {}
         };
         load();
-        return () => { 
-            active = false; 
-        };
+        return () => { active = false; };
     }, [item.id]);
 
     return (
         <div 
             onClick={onClick} 
-            className="relative aspect-[3/4] bg-vault-950 rounded-lg overflow-hidden border border-vault-800 cursor-pointer group hover:border-red-500/50 transition-all shadow-inner"
+            className="relative aspect-[3/4] bg-vault-950 rounded-lg overflow-hidden border border-vault-800 cursor-pointer group hover:border-red-500/50 transition-all shadow-md"
         >
             {src ? (
                 <>
@@ -56,9 +51,9 @@ const EvidenceThumbnail: React.FC<{ item: VaultItem; onClick: () => void }> = ({
 
 export const IntruderLogsView: React.FC<IntruderLogsProps> = ({ logs, onDelete, onViewImage, onBack }) => {
     return (
-        <div className="animate-in fade-in slide-in-from-right-8 duration-300 min-h-screen bg-vault-900 flex flex-col font-sans">
+        <div className="animate-in fade-in slide-in-from-right-8 duration-300 min-h-dvh bg-vault-950 flex flex-col font-sans">
           {/* Header */}
-          <header className="sticky top-0 z-40 bg-vault-900/95 backdrop-blur-xl border-b border-vault-800 px-4 py-3 flex items-center justify-between shadow-lg shadow-black/20">
+          <header className="sticky top-0 z-40 bg-vault-950/80 backdrop-blur-xl border-b border-vault-800 pt-safe px-4 py-3 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <button 
                 onClick={onBack} 
@@ -76,10 +71,10 @@ export const IntruderLogsView: React.FC<IntruderLogsProps> = ({ logs, onDelete, 
             </div>
           </header>
 
-          <main className="flex-1 p-4 max-w-2xl mx-auto w-full space-y-6 overflow-y-auto">
+          <main className="flex-1 p-4 max-w-2xl mx-auto w-full space-y-6 overflow-y-auto pb-safe">
              {logs.length === 0 ? (
                  <div className="flex flex-col items-center justify-center h-[60vh] text-vault-600 space-y-4">
-                     <div className="w-24 h-24 rounded-full bg-vault-800/50 flex items-center justify-center border border-vault-800">
+                     <div className="w-24 h-24 rounded-full bg-vault-900 flex items-center justify-center border border-vault-800">
                         <Icons.Shield />
                      </div>
                      <div className="text-center">
@@ -96,9 +91,9 @@ export const IntruderLogsView: React.FC<IntruderLogsProps> = ({ logs, onDelete, 
                         </div>
 
                         {/* Card */}
-                        <div className="bg-vault-800 rounded-2xl border border-vault-700 overflow-hidden shadow-xl transition-all hover:border-vault-600">
+                        <div className="bg-vault-800/50 rounded-2xl border border-vault-700 overflow-hidden shadow-lg transition-all hover:border-vault-600">
                             {/* Card Header */}
-                            <div className="px-4 py-3 border-b border-vault-700/50 flex justify-between items-center bg-vault-800/50">
+                            <div className="px-4 py-3 border-b border-vault-700/50 flex justify-between items-center bg-vault-800">
                                  <div>
                                      <div className="flex items-center gap-2">
                                          <h3 className="font-bold text-red-400 text-sm tracking-wide">ACCESS DENIED</h3>

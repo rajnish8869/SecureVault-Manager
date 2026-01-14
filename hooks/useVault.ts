@@ -1,34 +1,62 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { SecureVault } from '../plugins/SecureVaultPlugin';
 import type { VaultItem } from '../types';
 
 export const useVault = (password: string | null) => {
-  const [items, setItems] = useState<VaultItem[]>([]);
+  const [allItems, setAllItems] = useState<VaultItem[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(undefined);
   
+  const items = useMemo(() => {
+    return allItems.filter(i => i.parentId === currentFolderId);
+  }, [allItems, currentFolderId]);
+
+  const breadcrumbs = useMemo(() => {
+      const path: { id?: string, name: string }[] = [{ id: undefined, name: 'Home' }];
+      let curr = currentFolderId;
+      const stack = [];
+      while(curr) {
+          const folder = allItems.find(i => i.id === curr);
+          if(folder) {
+              stack.unshift({ id: folder.id, name: folder.originalName });
+              curr = folder.parentId;
+          } else {
+              break;
+          }
+      }
+      return [...path, ...stack];
+  }, [allItems, currentFolderId]);
+
   const loadFiles = useCallback(async () => {
     if (!password) return;
     try {
       const files = await SecureVault.getVaultFiles();
-      setItems(files);
+      setAllItems(files);
     } catch (e) {
       console.error("Failed to load vault files", e);
     }
   }, [password]);
 
-  const importFile = async (file: File, onProgress?: (p: number) => void) => {
+  const createFolder = async (name: string) => {
+      const newFolder = await SecureVault.createFolder({ name, parentId: currentFolderId });
+      setAllItems(prev => [newFolder, ...prev]);
+  };
+
+  const importFile = async (file: File) => {
     if (!password) throw new Error("No session");
     const newItem = await SecureVault.importFile({
         fileBlob: file,
         fileName: file.name,
-        password
+        password,
+        parentId: currentFolderId
     });
-    setItems(prev => [newItem, ...prev]);
+    setAllItems(prev => [newItem, ...prev]);
     return newItem;
   };
 
-  const deleteFile = async (id: string) => {
-    await SecureVault.deleteVaultFile({ id });
-    setItems(prev => prev.filter(i => i.id !== id));
+  const deleteItems = async (ids: string[]) => {
+    await SecureVault.deleteVaultItems({ ids });
+    setAllItems(prev => prev.filter(i => !ids.includes(i.id))); // Optimistic update, but parent recursive logic handles actual cleanup on reload
+    loadFiles(); // Reload to ensure cache consistency with recursive deletes
   };
 
   const exportFile = async (id: string) => {
@@ -42,13 +70,29 @@ export const useVault = (password: string | null) => {
     return await SecureVault.previewFile({ id, password });
   };
 
+  const moveItems = async (ids: string[], targetId?: string) => {
+      await SecureVault.moveItems({ itemIds: ids, targetParentId: targetId });
+      loadFiles();
+  };
+
+  const copyItems = async (ids: string[], targetId?: string) => {
+      if(!password) return;
+      await SecureVault.copyItems({ itemIds: ids, targetParentId: targetId, password });
+      loadFiles();
+  };
+
   return {
     items,
-    setItems,
+    breadcrumbs,
+    currentFolderId,
+    setCurrentFolderId,
     loadFiles,
     importFile,
-    deleteFile,
+    createFolder,
+    deleteItems,
     exportFile,
-    previewFile
+    previewFile,
+    moveItems,
+    copyItems
   };
 };

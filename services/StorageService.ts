@@ -84,6 +84,19 @@ export class StorageService {
     } catch(e) {}
   }
 
+  static async copyFile(sourceId: string, destId: string) {
+      try {
+          await Filesystem.copy({
+              from: `${VAULT_DIR}/${sourceId}.enc`,
+              to: `${VAULT_DIR}/${destId}.enc`,
+              directory: Directory.Data,
+              toDirectory: Directory.Data
+          });
+      } catch(e) {
+          throw new Error(`Failed to copy file ${sourceId}`);
+      }
+  }
+
   // --- Intruder Pending Files (Unencrypted temporarily) ---
   static async savePendingIntruder(filename: string, base64: string) {
     await Filesystem.writeFile({

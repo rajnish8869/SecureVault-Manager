@@ -11,6 +11,16 @@ class SecureVaultFacade implements EncryptionPlugin {
   private sessionActive = false;
   private vaultCache: VaultItem[] = [];
 
+  private generateUUID(): string {
+    if (typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+  }
+
   async isInitialized(): Promise<{ initialized: boolean }> {
     const initialized = await AuthService.isInitialized();
     return { initialized };
@@ -48,15 +58,30 @@ class SecureVaultFacade implements EncryptionPlugin {
     this.sessionActive = true;
     this.vaultCache = await StorageService.loadMetadata(this.currentMode, this.currentKey);
     
+    // Sanitize Cache for legacy items
+    this.vaultCache = this.vaultCache.map(i => ({
+        ...i,
+        type: i.type || 'FILE',
+        parentId: i.parentId || undefined
+    }));
+    
     return { success: true, mode: this.currentMode };
   }
 
-  async importFile(options: { fileBlob: Blob; fileName: string; password: string }): Promise<VaultItem> {
+  async lockVault(): Promise<void> {
+      this.currentKey = null;
+      this.sessionActive = false;
+      this.vaultCache = [];
+  }
+
+  async importFile(options: { fileBlob: Blob; fileName: string; password: string; parentId?: string }): Promise<VaultItem> {
     if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
 
-    const id = crypto.randomUUID();
+    const id = this.generateUUID();
     const newItem: VaultItem = {
       id: id,
+      parentId: options.parentId,
+      type: 'FILE',
       originalName: options.fileName,
       originalPath: 'encrypted_storage', 
       mimeType: options.fileBlob.type || 'application/octet-stream',
@@ -76,17 +101,155 @@ class SecureVaultFacade implements EncryptionPlugin {
     return newItem;
   }
 
+  async createFolder(options: { name: string; parentId?: string }): Promise<VaultItem> {
+      if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
+      
+      const id = this.generateUUID();
+      const folder: VaultItem = {
+          id,
+          parentId: options.parentId,
+          type: 'FOLDER',
+          originalName: options.name,
+          originalPath: 'virtual_folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          size: 0,
+          importedAt: Date.now()
+      };
+
+      this.vaultCache.unshift(folder);
+      await StorageService.saveMetadata(this.currentMode, this.vaultCache, this.currentKey);
+      return folder;
+  }
+
+  async moveItems(options: { itemIds: string[]; targetParentId?: string }): Promise<{ success: boolean }> {
+      if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
+
+      // Validate: Cannot move a folder into itself or its children
+      const targetPath = new Set<string>();
+      let curr = options.targetParentId;
+      while(curr) {
+          targetPath.add(curr);
+          const parent = this.vaultCache.find(i => i.id === curr);
+          curr = parent?.parentId;
+      }
+
+      for (const id of options.itemIds) {
+          if (targetPath.has(id)) throw new Error("Cannot move folder into itself");
+      }
+
+      let modified = false;
+      this.vaultCache = this.vaultCache.map(item => {
+          if (options.itemIds.includes(item.id)) {
+              modified = true;
+              return { ...item, parentId: options.targetParentId };
+          }
+          return item;
+      });
+
+      if (modified) {
+          await StorageService.saveMetadata(this.currentMode, this.vaultCache, this.currentKey);
+      }
+      return { success: true };
+  }
+
+  async copyItems(options: { itemIds: string[]; targetParentId?: string; password: string }): Promise<{ success: boolean }> {
+      if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
+
+      const copies: VaultItem[] = [];
+
+      for (const id of options.itemIds) {
+          const item = this.vaultCache.find(i => i.id === id);
+          if (!item) continue;
+
+          if (item.type === 'FOLDER') {
+              await this.recursiveCopy(item, options.targetParentId);
+          } else {
+              // Copy File
+              const newId = this.generateUUID();
+              try {
+                await StorageService.copyFile(item.id, newId);
+                const copy: VaultItem = {
+                    ...item,
+                    id: newId,
+                    parentId: options.targetParentId,
+                    importedAt: Date.now(),
+                    originalName: `${item.originalName} (Copy)`
+                };
+                copies.push(copy);
+              } catch(e) { console.error("Copy failed", e); }
+          }
+      }
+
+      this.vaultCache.push(...copies);
+      await StorageService.saveMetadata(this.currentMode, this.vaultCache, this.currentKey);
+      return { success: true };
+  }
+
+  private async recursiveCopy(folder: VaultItem, parentId?: string) {
+      const newFolderId = this.generateUUID();
+      const newFolder: VaultItem = {
+          ...folder,
+          id: newFolderId,
+          parentId: parentId,
+          originalName: `${folder.originalName} (Copy)`,
+          importedAt: Date.now()
+      };
+      this.vaultCache.push(newFolder);
+
+      const children = this.vaultCache.filter(i => i.parentId === folder.id);
+      for (const child of children) {
+          if (child.type === 'FOLDER') {
+              await this.recursiveCopy(child, newFolderId);
+          } else {
+              const newFileId = this.generateUUID();
+              try {
+                  await StorageService.copyFile(child.id, newFileId);
+                  const copy: VaultItem = {
+                      ...child,
+                      id: newFileId,
+                      parentId: newFolderId,
+                      importedAt: Date.now()
+                  };
+                  this.vaultCache.push(copy);
+              } catch(e) {}
+          }
+      }
+  }
+
   async getVaultFiles(): Promise<VaultItem[]> {
     if (!this.sessionActive) throw new Error("Vault Locked");
     return this.vaultCache.filter(item => !item.originalName.startsWith('intruder_'));
   }
 
   async deleteVaultFile(options: { id: string }): Promise<{ success: boolean }> {
+      return this.deleteVaultItems({ ids: [options.id] });
+  }
+
+  async deleteVaultItems(options: { ids: string[] }): Promise<{ success: boolean }> {
     if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
 
-    await StorageService.deleteFile(options.id);
+    // Identify all items to delete (including children)
+    const idsToDelete = new Set(options.ids);
+    let added = true;
+    while (added) {
+        added = false;
+        for (const item of this.vaultCache) {
+            if (!idsToDelete.has(item.id) && item.parentId && idsToDelete.has(item.parentId)) {
+                idsToDelete.add(item.id);
+                added = true;
+            }
+        }
+    }
+
+    // Perform deletions
+    for (const id of idsToDelete) {
+        const item = this.vaultCache.find(i => i.id === id);
+        if (item && item.type === 'FILE') {
+            await StorageService.deleteFile(id);
+        }
+    }
     
-    this.vaultCache = this.vaultCache.filter(i => i.id !== options.id);
+    this.vaultCache = this.vaultCache.filter(i => !idsToDelete.has(i.id));
     await StorageService.saveMetadata(this.currentMode, this.vaultCache, this.currentKey);
     
     return { success: true };
@@ -96,7 +259,7 @@ class SecureVaultFacade implements EncryptionPlugin {
     if (!this.sessionActive || !this.currentKey) throw new Error("Vault Locked");
 
     const item = this.vaultCache.find(i => i.id === options.id);
-    if (!item) throw new Error("File not found in metadata");
+    if (!item || item.type === 'FOLDER') throw new Error("Cannot export folder directly");
 
     const blob = await StorageService.loadFile(options.id, this.currentKey);
     const filename = `Restored_${item.originalName}`;
@@ -158,6 +321,7 @@ class SecureVaultFacade implements EncryptionPlugin {
     
     // Re-encrypt Files
     for (const item of allItems) {
+      if(item.type === 'FOLDER') continue;
       try {
         const fileBlob = await StorageService.loadFile(item.id, oldKey);
         await StorageService.saveFile(item.id, fileBlob, newKey);
@@ -217,13 +381,7 @@ class SecureVaultFacade implements EncryptionPlugin {
 
   async removeDecoyCredential(password: string): Promise<{ success: boolean }> {
     await AuthService.removeDecoyCredential();
-    await StorageService.deleteFile('meta_decoy.json').catch(() => {}); // Manually clean up specific metadata file logic in storage needed?
-    // StorageService expects full path or ID. Let's fix deleteFile slightly to be generic or use a specific method.
-    // Ideally StorageService should expose removeDecoyMetadata.
-    // For now, assuming standard wipe in AuthService cleans key, but file remains.
-    // Let's implement specific clean up if needed, but existing logic used deleteFile with full path. 
-    // In new StorageService, deleteFile appends .enc.
-    // I will ignore the file cleanup for now or rely on overwritten data.
+    await StorageService.deleteFile('meta_decoy.json').catch(() => {}); 
     return { success: true };
   }
 
@@ -305,7 +463,6 @@ class SecureVaultFacade implements EncryptionPlugin {
       const pendingFiles = await StorageService.getPendingIntruders();
       
       for (const file of pendingFiles) {
-         // Convert base64 back to blob
          const byteCharacters = atob(file.data);
          const byteNumbers = new Array(byteCharacters.length);
          for (let i = 0; i < byteCharacters.length; i++) {
@@ -364,9 +521,7 @@ class SecureVaultFacade implements EncryptionPlugin {
       const session = logs.find(s => s.timestamp === options.timestamp);
       
       if (session) {
-          for(const f of session.images) {
-              await this.deleteVaultFile({ id: f.id });
-          }
+          await this.deleteVaultItems({ ids: session.images.map(i => i.id) });
       }
       return { success: true };
   }

@@ -29,9 +29,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [decoyForm, setDecoyForm] = useState({ pass: '', confirm: '' });
   const [decoyError, setDecoyError] = useState<string | null>(null);
 
-  // Sync form type if it starts different (optional, usually keeping state independent is safer for controlled inputs)
+  // Sync form type if it starts different
   useEffect(() => {
-    // Reset form when switching types in UI to prevent invalid states
     setForm(f => ({ ...f, new: '', confirm: '' }));
     setCredError(null);
   }, [form.type]);
@@ -75,13 +74,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             .then(() => {
                 setForm({ old: '', new: '', confirm: '', type: form.type });
             })
-            .catch(() => {}); // Parent handles error display
+            .catch(() => {});
       }
   };
 
   const validateDecoy = () => {
       setDecoyError(null);
-      // Decoy MUST match the current lock type to be effective
       if (lockType === 'PIN') {
           if (decoyForm.pass.length !== PIN_LENGTH) {
               setDecoyError(`Decoy PIN must be exactly ${PIN_LENGTH} digits`);
@@ -110,8 +108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-right-8 duration-300 bg-vault-900 min-h-screen pb-10">
-        <header className="sticky top-0 z-40 bg-vault-900/95 backdrop-blur-xl border-b border-vault-800 p-4 flex items-center justify-between shadow-lg shadow-black/20">
+    <div className="animate-in fade-in slide-in-from-right-8 duration-300 bg-vault-950 min-h-dvh flex flex-col">
+        <header className="sticky top-0 z-40 bg-vault-950/80 backdrop-blur-xl border-b border-vault-800 pt-safe px-4 py-3 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <button 
                 onClick={onBack} 
@@ -123,7 +121,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
         </header>
 
-        <main className="p-4 max-w-2xl mx-auto space-y-8">
+        <main className="flex-1 p-4 max-w-2xl mx-auto space-y-8 pb-safe overflow-y-auto w-full">
             
             {/* Intruder Section */}
             <section className="space-y-3">
@@ -184,7 +182,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         {/* Decoy Setup Inline Form */}
                         {showDecoySetup && !hasDecoy && (
                             <div className="bg-vault-900/50 rounded-xl border border-vault-700 p-4 space-y-4 animate-in slide-in-from-top-2">
-                                <div className="flex items-start gap-2 text-amber-500/80 bg-amber-500/10 p-3 rounded-lg text-xs mb-2">
+                                <div className="flex items-start gap-2 text-amber-500/90 bg-amber-500/10 p-3 rounded-lg text-xs mb-2 leading-relaxed">
                                     <Icons.Alert />
                                     <p>Your decoy credential type must match your main vault ({lockType}) to effectively fool intruders.</p>
                                 </div>
@@ -239,7 +237,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                          </div>
 
                         <div className="space-y-4">
-                            {/* Old Credential (Based on CURRENT lockType) */}
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-vault-400">CURRENT {lockType}</label>
                                 <PasswordInput 
@@ -253,7 +250,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                             <hr className="border-vault-700/50" />
 
-                            {/* New Credential (Based on SELECTED type) */}
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-vault-400">NEW {form.type}</label>
                                 <PasswordInput 
