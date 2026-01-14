@@ -16,6 +16,12 @@ export interface IntruderSession {
   images: VaultItem[];
 }
 
+export interface IntruderSettings {
+  enabled: boolean;
+  photoCount: 1 | 2 | 3;
+  source: 'FRONT' | 'BACK' | 'BOTH';
+}
+
 export interface EncryptionPlugin {
   /**
    * Checks if the vault has been set up with credentials.
@@ -119,6 +125,10 @@ export interface EncryptionPlugin {
 
   // --- INTRUDER SELFIE ---
   
+  getIntruderSettings(): Promise<IntruderSettings>;
+  setIntruderSettings(settings: IntruderSettings): Promise<void>;
+  checkCameraPermission(): Promise<{ granted: boolean }>;
+
   /**
    * Triggers the silent capture sequence.
    * Designed to be fire-and-forget.

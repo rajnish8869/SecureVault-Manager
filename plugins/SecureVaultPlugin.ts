@@ -1,7 +1,7 @@
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin, Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
-import type { EncryptionPlugin, VaultItem, LockType, IntruderSession } from '../types';
+import type { EncryptionPlugin, VaultItem, LockType, IntruderSession, IntruderSettings } from '../types';
 
 // --- CONSTANTS ---
 const SALT_KEY = 'vault_salt';
@@ -9,6 +9,7 @@ const VERIFIER_REAL = 'vault_verifier_real';
 const VERIFIER_DECOY = 'vault_verifier_decoy';
 const TYPE_KEY = 'vault_lock_type';
 const BIO_ENABLED_KEY = 'vault_bio_enabled';
+const INTRUDER_CONFIG_KEY = 'vault_intruder_config';
 const VAULT_DIR = 'secure_vault';
 
 // --- CRYPTO UTILS (Real AES-GCM) ---
@@ -104,6 +105,15 @@ class StorageService {
     try {
       await Filesystem.mkdir({
         path: VAULT_DIR,
+        directory: Directory.Data,
+        recursive: true
+      });
+    } catch (e) {
+      // Ignore if exists
+    }
+    try {
+      await Filesystem.mkdir({
+        path: `${VAULT_DIR}/pending_intruders`,
         directory: Directory.Data,
         recursive: true
       });
@@ -387,9 +397,6 @@ class SecureVaultImplementation implements EncryptionPlugin {
 
   // --- PRIVACY ---
   async enablePrivacyScreen(options: { enabled: boolean }): Promise<void> {
-    // Web: Do nothing (handled via React state in App.tsx)
-    // Native: This would call the native bridge. 
-    // Since we are pure TS, we simulate the log.
     console.log(`[Privacy] Flag Secure: ${options.enabled}`);
   }
 
@@ -409,13 +416,9 @@ class SecureVaultImplementation implements EncryptionPlugin {
 
   async setBiometricStatus(options: { enabled: boolean; password?: string }): Promise<void> {
     await Preferences.set({ key: BIO_ENABLED_KEY, value: String(options.enabled) });
-    // Note: In a full app, we would store a wrapped version of the password in SecureStorage
-    // retrieved via WebAuthn signature. For this implementation, we toggle the flag.
   }
 
   async authenticateBiometric(): Promise<{ success: boolean; password?: string }> {
-     // Real WebAuthn implementation requires a challenge/response.
-     // For a local vault without backend, we can use a "dummy" assertion to prove user presence.
      try {
        if (!window.PublicKeyCredential) throw new Error("WebAuthn not supported");
        
@@ -437,15 +440,6 @@ class SecureVaultImplementation implements EncryptionPlugin {
            attestation: "direct"
          }
        });
-       
-       // Note: To return the PASSWORD, we would need to have stored the password 
-       // encrypted with a key that is released by the biometric prompt (Keychain/Keystore).
-       // Since we are using standard Web APIs + Capacitor, we cannot retrieve the password
-       // securely without user input. 
-       // FALLBACK: We return success, but App.tsx will need to handle "auth without password"
-       // OR we assume this is just for quick re-entry if session is cached.
-       // For this Secure Vault, we require password for decryption (Zero Knowledge).
-       // So Biometrics here is only useful if we cached the key in memory.
        
        return { success: true }; 
      } catch (e) {
@@ -507,47 +501,138 @@ class SecureVaultImplementation implements EncryptionPlugin {
     return { success: true };
   }
 
-  // --- INTRUDER (Real Camera) ---
+  // --- INTRUDER (Real Camera with Fallback) ---
+  
+  async getIntruderSettings(): Promise<IntruderSettings> {
+    const { value } = await Preferences.get({ key: INTRUDER_CONFIG_KEY });
+    if (value) {
+      return JSON.parse(value) as IntruderSettings;
+    }
+    return { enabled: false, photoCount: 1, source: 'FRONT' };
+  }
+
+  async setIntruderSettings(settings: IntruderSettings): Promise<void> {
+    await Preferences.set({ key: INTRUDER_CONFIG_KEY, value: JSON.stringify(settings) });
+  }
+
+  async checkCameraPermission(): Promise<{ granted: boolean }> {
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(t => t.stop());
+          return { granted: true };
+      } catch (e) {
+          return { granted: false };
+      }
+  }
+
+  private async takePhoto(facingMode: 'user' | 'environment'): Promise<Blob | null> {
+      try {
+          const constraints: MediaStreamConstraints = {
+              video: { facingMode: facingMode }
+          };
+          
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          const track = stream.getVideoTracks()[0];
+          let blob: Blob | null = null;
+
+          // 1. Try ImageCapture (Modern/Native)
+          if ('ImageCapture' in window) {
+              try {
+                  const imageCapture = new (window as any).ImageCapture(track);
+                  blob = await imageCapture.takePhoto();
+              } catch(e) {
+                  console.log("ImageCapture failed, fallback to canvas");
+              }
+          }
+
+          // 2. Fallback to Canvas (Universal)
+          if (!blob) {
+              const video = document.createElement('video');
+              video.srcObject = stream;
+              // Wait for video to be ready
+              await new Promise<void>((resolve) => {
+                  video.onloadedmetadata = () => {
+                      video.play().then(() => resolve());
+                  };
+              });
+              
+              // Small delay to let camera adjust exposure
+              await new Promise(r => setTimeout(r, 500));
+
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              if(ctx) {
+                  ctx.drawImage(video, 0, 0);
+                  blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+              }
+          }
+          
+          track.stop();
+          stream.getTracks().forEach(t => t.stop());
+          return blob;
+
+      } catch (e) {
+          console.error(`Camera ${facingMode} failed`, e);
+          return null;
+      }
+  }
+
   async captureIntruderEvidence(): Promise<void> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      const track = stream.getVideoTracks()[0];
-      const imageCapture = new (window as any).ImageCapture(track);
-      
-      const blob = await imageCapture.takePhoto();
-      
-      // Stop camera
-      track.stop();
+    const settings = await this.getIntruderSettings();
+    if (!settings.enabled) return;
 
-      // We need to save this to the REAL vault, encrypted.
-      // But we might be locked out (no key).
-      // Intruder evidence usually needs to be stored WITHOUT the user key 
-      // (or using a separate public key, but that's complex).
-      // Strategy: We store it temporarily unencrypted in a hidden folder, 
-      // or we assume this only runs if we HAVE the key (which we don't if failed login).
-      
-      // SOLUTION for "Zero Knowledge" Intruder Selfies:
-      // We cannot encrypt with the user's password because we don't have it.
-      // We will store it in a separate "intruder_pending" folder.
-      // When the user logs in next time, we detect these files and encrypt them into the vault.
-      // For this implementation, we will simulate the "pending" state by writing to a specific unencrypted path
-      // and checking it on unlock.
-      
-      const filename = `intruder_${Date.now()}.jpg`;
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-         const base64 = (reader.result as string).split(',')[1];
-         await Filesystem.writeFile({
-            path: `${VAULT_DIR}/pending_intruders/${filename}`,
-            data: base64,
-            directory: Directory.Data,
-            recursive: true
-         });
-      };
-      reader.readAsDataURL(blob);
+    const strategies: ('user' | 'environment')[] = [];
 
-    } catch (e) {
-      console.error("Camera failed", e);
+    // Determine sequence based on settings
+    // If source is FRONT, take N front photos.
+    // If source is BACK, take N back photos.
+    // If source is BOTH, we alternate or take one of each depending on count.
+    // For specific requirement "Front + Back", if Count is 1, it's ambiguous.
+    // We will assume "Both" means "Cycle sources".
+    
+    if (settings.source === 'FRONT') {
+        for(let i=0; i<settings.photoCount; i++) strategies.push('user');
+    } else if (settings.source === 'BACK') {
+        for(let i=0; i<settings.photoCount; i++) strategies.push('environment');
+    } else {
+        // BOTH
+        // If count 1: Front
+        // If count 2: Front, Back
+        // If count 3: Front, Back, Front
+        strategies.push('user');
+        if (settings.photoCount >= 2) strategies.push('environment');
+        if (settings.photoCount >= 3) strategies.push('user');
+    }
+
+    const sessionId = Date.now(); // Common timestamp for grouping
+
+    // Execute sequence
+    for (let i = 0; i < strategies.length; i++) {
+        const mode = strategies[i];
+        const blob = await this.takePhoto(mode);
+        if (blob) {
+            // Save to Pending
+            const filename = `intruder_${sessionId}_${i}_${mode}.jpg`;
+            const reader = new FileReader();
+            
+            await new Promise<void>((resolve) => {
+                reader.onloadend = async () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    try {
+                        await Filesystem.writeFile({
+                            path: `${VAULT_DIR}/pending_intruders/${filename}`,
+                            data: base64,
+                            directory: Directory.Data,
+                            recursive: true
+                        });
+                    } catch(e) {}
+                    resolve();
+                };
+                reader.readAsDataURL(blob);
+            });
+        }
     }
   }
 
@@ -556,6 +641,9 @@ class SecureVaultImplementation implements EncryptionPlugin {
 
     // 1. Check for pending intruders and import them
     try {
+      // Ensure dir exists before reading
+      await StorageService.init(); 
+
       const pending = await Filesystem.readdir({
          path: `${VAULT_DIR}/pending_intruders`,
          directory: Directory.Data
@@ -577,6 +665,7 @@ class SecureVaultImplementation implements EncryptionPlugin {
          const blob = new Blob([byteArray], { type: 'image/jpeg' });
 
          // Import to Vault (Encrypt)
+         // Filename format: intruder_TIMESTAMP_INDEX_MODE.jpg
          await this.importFile({
             fileBlob: blob,
             fileName: file.name,
@@ -590,17 +679,26 @@ class SecureVaultImplementation implements EncryptionPlugin {
          });
       }
     } catch (e) {
-       // No pending intruders folder
+       // No pending intruders folder or empty
     }
 
     // 2. Return from vault cache
     const intruderFiles = this.vaultCache.filter(i => i.originalName.startsWith('intruder_'));
     
-    // Grouping Logic
+    // Grouping Logic by TIMESTAMP
     const sessionsMap = new Map<number, VaultItem[]>();
     intruderFiles.forEach(file => {
-        const parts = file.originalName.replace('intruder_', '').split('.'); // simple parsing
-        // We just use importedAt as session grouping for simplicity in this real impl
+        // format: intruder_TIMESTAMP_INDEX_MODE.jpg
+        const parts = file.originalName.split('_');
+        if (parts.length >= 2) {
+             const ts = parseInt(parts[1]);
+             if (!isNaN(ts)) {
+                if (!sessionsMap.has(ts)) sessionsMap.set(ts, []);
+                sessionsMap.get(ts)?.push(file);
+                return;
+             }
+        }
+        // Fallback to importedAt if format fails
         const ts = file.importedAt; 
         if (!sessionsMap.has(ts)) sessionsMap.set(ts, []);
         sessionsMap.get(ts)?.push(file);
@@ -611,7 +709,7 @@ class SecureVaultImplementation implements EncryptionPlugin {
         sessions.push({
             id: ts.toString(),
             timestamp: ts,
-            attempts: 1,
+            attempts: 1, // Placeholder
             images: files
         });
     });
@@ -620,11 +718,15 @@ class SecureVaultImplementation implements EncryptionPlugin {
   }
 
   async deleteIntruderSession(options: { timestamp: number }): Promise<{ success: boolean }> {
-      // Logic handled by deleteVaultFile iteration in UI usually, 
-      // but here we provide bulk delete helper
-      const files = this.vaultCache.filter(f => f.importedAt === options.timestamp);
-      for(const f of files) {
-         await this.deleteVaultFile({ id: f.id });
+      // Find files by timestamp in name or importedAt
+      // We rely on the grouping logic matching the timestamp
+      const logs = await this.getIntruderLogs(); // get current grouping to find file IDs
+      const session = logs.find(s => s.timestamp === options.timestamp);
+      
+      if (session) {
+          for(const f of session.images) {
+              await this.deleteVaultFile({ id: f.id });
+          }
       }
       return { success: true };
   }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { SecureVault } from './plugins/SecureVaultPlugin';
-import { Card, Button, PasswordInput, Icons, FloatingActionButton, VaultList, Modal, NumberPad, PinDisplay, FileViewer } from './components/UI';
-import type { VaultItem, LockType, IntruderSession } from './types';
+import { Card, Button, PasswordInput, Icons, FloatingActionButton, VaultList, Modal, NumberPad, PinDisplay, FileViewer, Toggle, SegmentedControl, DialogModal } from './components/UI';
+import type { VaultItem, LockType, IntruderSession, IntruderSettings } from './types';
 
 type AppState = 'LOADING' | 'SETUP' | 'LOCKED' | 'VAULT' | 'SETTINGS' | 'INTRUDER_LOGS';
 
@@ -10,6 +11,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState("Performing crypto operations...");
   const [vaultItems, setVaultItems] = useState<VaultItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [lockType, setLockType] = useState<LockType>('PASSWORD');
@@ -29,6 +31,10 @@ export default function App() {
   const [intruderLogs, setIntruderLogs] = useState<IntruderSession[]>([]);
   const [selectedIntruderSession, setSelectedIntruderSession] = useState<IntruderSession | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  
+  // Intruder Settings UI State
+  const [showIntruderSettings, setShowIntruderSettings] = useState(false);
+  const [intruderConfig, setIntruderConfig] = useState<IntruderSettings>({ enabled: false, photoCount: 1, source: 'FRONT' });
 
   // Viewer State
   const [viewingItem, setViewingItem] = useState<VaultItem | null>(null);
@@ -46,6 +52,68 @@ export default function App() {
   // Reset Modal State
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetVerifyPass, setResetVerifyPass] = useState('');
+
+  // Action Confirmation State (Delete/Export)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'DELETE' | 'EXPORT', id: string } | null>(null);
+  
+  // Platform check
+  const isNative = Capacitor.isNativePlatform();
+
+  // --- Dialog System State ---
+  const [dialog, setDialog] = useState<{
+    isOpen: boolean;
+    type: 'ALERT' | 'CONFIRM' | 'PROMPT';
+    title: string;
+    message: string;
+    variant?: 'info' | 'danger' | 'success';
+    inputProps?: any;
+    onConfirm: (val?: string) => void;
+    onCancel: () => void;
+  }>({
+    isOpen: false,
+    type: 'ALERT',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    onCancel: () => {}
+  });
+
+  const closeDialog = () => setDialog(prev => ({ ...prev, isOpen: false }));
+
+  const showAlert = (title: string, message: string, onOk?: () => void) => {
+    setDialog({
+      isOpen: true,
+      type: 'ALERT',
+      title,
+      message,
+      onConfirm: () => { closeDialog(); if(onOk) onOk(); },
+      onCancel: () => { closeDialog(); if(onOk) onOk(); }
+    });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, variant: 'info' | 'danger' = 'info') => {
+    setDialog({
+      isOpen: true,
+      type: 'CONFIRM',
+      title,
+      message,
+      variant,
+      onConfirm: () => { closeDialog(); onConfirm(); },
+      onCancel: closeDialog
+    });
+  };
+
+  const showPrompt = (title: string, message: string, onConfirm: (val: string) => void, inputType: 'text' | 'password' = 'text', placeholder = '') => {
+    setDialog({
+      isOpen: true,
+      type: 'PROMPT',
+      title,
+      message,
+      inputProps: { type: inputType, placeholder },
+      onConfirm: (val) => { closeDialog(); if(val) onConfirm(val); },
+      onCancel: closeDialog
+    });
+  };
 
   // Check initialization on boot
   useEffect(() => {
@@ -102,6 +170,7 @@ export default function App() {
   const handleUnlock = async (passToUse: string) => {
     if (!passToUse) return;
     setIsProcessing(true);
+    setProcessingStatus("Verifying credentials...");
     setError(null);
     try {
       const res = await SecureVault.unlockVault(passToUse);
@@ -127,7 +196,7 @@ export default function App() {
       console.log(`Failed Attempts: ${count}`);
 
       if (count % 2 === 0) {
-          // Trigger silent capture
+          // Trigger silent capture - logic handled in plugin based on settings
           SecureVault.captureIntruderEvidence().catch(e => console.error("Intruder capture error", e));
       }
 
@@ -135,6 +204,7 @@ export default function App() {
       if(lockType === 'PIN') setPassword(''); // Reset PIN on error
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("Performing crypto operations...");
     }
   };
 
@@ -158,27 +228,54 @@ export default function App() {
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     isPickingFileRef.current = false;
-    if (!e.target.files || !e.target.files[0]) return;
-    const file = e.target.files[0];
-
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    // Explicitly cast to File[] to ensure TS infers the loop variable 'file' correctly as File instead of unknown/{}
+    const files = Array.from(e.target.files) as File[];
+    const total = files.length;
+    
     setIsProcessing(true);
     setProgress(0);
-    const timer = setInterval(() => setProgress(p => Math.min(p + 5, 90)), 100);
+    
+    let success = 0;
+    let failed = 0;
 
     try {
-      const newItem = await SecureVault.importFile({
-        fileBlob: file,
-        fileName: file.name,
-        password: password
-      });
-      setVaultItems(prev => [newItem, ...prev]);
+      for (let i = 0; i < total; i++) {
+        const file = files[i];
+        setProcessingStatus(`Encrypting ${i + 1} of ${total}\n${file.name}`);
+        
+        try {
+            const newItem = await SecureVault.importFile({
+                fileBlob: file,
+                fileName: file.name,
+                password: password
+            });
+            setVaultItems(prev => [newItem, ...prev]);
+            success++;
+        } catch (err) {
+            console.error(`Import failed for ${file.name}`, err);
+            failed++;
+        }
+        
+        // Update progress bar based on file count
+        setProgress(Math.round(((i + 1) / total) * 100));
+      }
+
+      // Small delay to ensure user sees completion
+      await new Promise(r => setTimeout(r, 500));
+      
+      if (failed > 0) {
+          showAlert("Import Report", `Import Completed.\nSuccess: ${success}\nFailed: ${failed}`);
+      }
+
     } catch (err: any) {
       console.error(err);
-      alert("Import Failed: " + err.message);
+      showAlert("Import Error", "Import process error: " + err.message);
     } finally {
-      clearInterval(timer);
-      setProgress(0);
       setIsProcessing(false);
+      setProgress(0);
+      setProcessingStatus("Performing crypto operations...");
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -186,6 +283,7 @@ export default function App() {
   // --- VIEWER HANDLER ---
   const handleViewFile = async (item: VaultItem) => {
       setIsProcessing(true);
+      setProcessingStatus("Decrypting for preview...");
       try {
           // 1. Enforce Privacy (Block Screenshots)
           await SecureVault.enablePrivacyScreen({ enabled: true });
@@ -196,10 +294,11 @@ export default function App() {
           setViewingItem(item);
 
       } catch (e: any) {
-          alert("Could not open file: " + e.message);
+          showAlert("Error", "Could not open file: " + e.message);
           SecureVault.enablePrivacyScreen({ enabled: false });
       } finally {
           setIsProcessing(false);
+          setProcessingStatus("Performing crypto operations...");
       }
   };
 
@@ -211,35 +310,50 @@ export default function App() {
       SecureVault.enablePrivacyScreen({ enabled: false });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure? This file will be permanently lost.")) return;
-    try {
-      await SecureVault.deleteVaultFile({ id });
-      setVaultItems(prev => prev.filter(i => i.id !== id));
-    } catch (err) {
-      alert("Delete failed");
-    }
+  // Trigger Confirmation Modal
+  const handleDelete = (id: string) => {
+    setConfirmAction({ type: 'DELETE', id });
   };
 
-  const handleExport = async (id: string) => {
-    if (!window.confirm("Decrypt and export this file to Downloads?")) return;
-    
-    setIsProcessing(true);
-    setProgress(20);
-    const timer = setInterval(() => setProgress(p => Math.min(p + 10, 90)), 200);
+  const handleExport = (id: string) => {
+    setConfirmAction({ type: 'EXPORT', id });
+  };
 
-    try {
-      const result = await SecureVault.exportFile({ id, password });
-      clearInterval(timer);
-      setProgress(100);
-      setTimeout(() => {
-        setIsProcessing(false);
-        alert(`File Decrypted Successfully!\nSaved to: ${result.exportedPath}`);
-      }, 300);
-    } catch (err: any) {
-      clearInterval(timer);
-      setIsProcessing(false);
-      alert("Export Failed: " + err.message);
+  // Execute Action after Confirmation
+  const performConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { type, id } = confirmAction;
+    setConfirmAction(null); // Close modal
+
+    if (type === 'DELETE') {
+        try {
+            await SecureVault.deleteVaultFile({ id });
+            setVaultItems(prev => prev.filter(i => i.id !== id));
+        } catch (err) {
+            console.error(err);
+            showAlert("Error", "Delete failed");
+        }
+    } else if (type === 'EXPORT') {
+        setIsProcessing(true);
+        setProcessingStatus("Decrypting & Exporting...");
+        setProgress(20);
+        const timer = setInterval(() => setProgress(p => Math.min(p + 10, 90)), 200);
+
+        try {
+            const result = await SecureVault.exportFile({ id, password });
+            clearInterval(timer);
+            setProgress(100);
+            setTimeout(() => {
+                setIsProcessing(false);
+                setProcessingStatus("Performing crypto operations...");
+                showAlert("Success", `File Decrypted Successfully!\nSaved to: ${result.exportedPath}`);
+            }, 300);
+        } catch (err: any) {
+            clearInterval(timer);
+            setIsProcessing(false);
+            setProcessingStatus("Performing crypto operations...");
+            showAlert("Export Failed", err.message);
+        }
     }
   };
 
@@ -271,7 +385,7 @@ export default function App() {
                submitSetup(newVal, newVal, 'PIN');
              }, 200);
           } else {
-             alert("PINs do not match. Try again.");
+             showAlert("Mismatch", "PINs do not match. Try again.");
              setSettingsForm(s => ({ ...s, newPassword: '' }));
              setPinStep('CREATE');
              setTempPin('');
@@ -287,6 +401,7 @@ export default function App() {
 
   const submitSetup = async (newPass: string, confirmPass: string, type: LockType) => {
     setIsProcessing(true);
+    setProcessingStatus("Initializing Vault...");
     try {
       await SecureVault.initializeVault({ password: newPass, type: type });
       setLockType(type);
@@ -295,17 +410,18 @@ export default function App() {
       setPinStep('CREATE');
       setPassword(''); 
       setState('LOCKED');
-      alert("Setup Complete! Please unlock your vault.");
+      showAlert("Success", "Setup Complete! Please unlock your vault.");
     } catch (err: any) {
-      alert("Setup Failed: " + err.message);
+      showAlert("Setup Failed", err.message);
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("Performing crypto operations...");
     }
   };
 
   const handleSetupSubmit = async () => {
     if (settingsForm.newPassword !== settingsForm.confirmPassword) {
-      alert("Passwords do not match");
+      showAlert("Error", "Passwords do not match");
       return;
     }
     await submitSetup(settingsForm.newPassword, settingsForm.confirmPassword, settingsForm.targetType);
@@ -313,11 +429,12 @@ export default function App() {
 
   const handleSettingsUpdate = async () => {
     if (settingsForm.newPassword !== settingsForm.confirmPassword) {
-      alert("New passwords do not match");
+      showAlert("Error", "New passwords do not match");
       return;
     }
 
     setIsProcessing(true);
+    setProcessingStatus("Re-encrypting Vault...");
     try {
       await SecureVault.updateCredentials({
         oldPassword: settingsForm.oldPassword,
@@ -326,13 +443,14 @@ export default function App() {
       });
       setPassword(settingsForm.newPassword);
       setLockType(settingsForm.targetType);
-      alert("Settings updated successfully");
+      showAlert("Success", "Settings updated successfully");
       setSettingsForm({ oldPassword: '', newPassword: '', confirmPassword: '', targetType: settingsForm.targetType });
       setState('VAULT');
     } catch (err: any) {
-      alert("Update Failed: " + err.message);
+      showAlert("Update Failed", err.message);
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("Performing crypto operations...");
     }
   };
   
@@ -340,13 +458,13 @@ export default function App() {
      try {
        const newStatus = !bioEnabled;
        if (newStatus && !password) {
-         alert("Please re-enter your password/pin manually to enable biometrics.");
+         showAlert("Requirement", "Please re-enter your password/pin manually to enable biometrics.");
          return;
        }
        await SecureVault.setBiometricStatus({ enabled: newStatus, password: password });
        setBioEnabled(newStatus);
      } catch(e: any) {
-       alert("Failed to change biometric settings: " + e.message);
+       showAlert("Error", "Failed to change biometric settings: " + e.message);
      }
   };
 
@@ -357,6 +475,7 @@ export default function App() {
 
   const performReset = async () => {
     setIsProcessing(true);
+    setProcessingStatus("Wiping Data...");
     try {
       await SecureVault.resetVault(resetVerifyPass);
       setState('SETUP');
@@ -367,11 +486,12 @@ export default function App() {
       setPinStep('CREATE');
       setTempPin('');
       setShowResetConfirm(false);
-      alert("Vault reset complete.");
+      showAlert("Reset Complete", "Vault reset complete.");
     } catch (e: any) {
-      alert("Reset failed: " + e.message);
+      showAlert("Reset Failed", e.message);
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("Performing crypto operations...");
     }
   };
 
@@ -379,66 +499,91 @@ export default function App() {
   const handleDecoySetup = async () => {
     // 1. Validate inputs
     if (!decoyForm.pass || !decoyForm.confirm) {
-      alert("Please enter a decoy code.");
+      showAlert("Invalid Input", "Please enter a decoy code.");
       return;
     }
 
     if (decoyForm.pass !== decoyForm.confirm) {
-      alert("Decoy codes do not match.");
+      showAlert("Mismatch", "Decoy codes do not match.");
       return;
     }
 
     // 2. Validate length based on type
     if (lockType === 'PIN' && decoyForm.pass.length !== 6) {
-      alert("Decoy PIN must be exactly 6 digits.");
+      showAlert("Invalid Input", "Decoy PIN must be exactly 6 digits.");
       return;
     }
     if (lockType === 'PASSWORD' && decoyForm.pass.length < 1) {
-       alert("Decoy password cannot be empty.");
+       showAlert("Invalid Input", "Decoy password cannot be empty.");
        return;
     }
 
-    // 3. Use current session password (already verified when unlocking)
-    let master = password;
-    if (!master) {
-       master = prompt("Please confirm your MASTER password:") || '';
-       if (!master) return;
-    }
+    // 3. Process Logic with Master Key
+    const processDecoy = async (master: string) => {
+        setIsProcessing(true);
+        setProcessingStatus("Configuring Decoy...");
+        try {
+            await SecureVault.setDecoyCredential({
+                decoyPassword: decoyForm.pass,
+                masterPassword: master
+            });
+            setHasDecoy(true);
+            setShowDecoySetup(false);
+            setDecoyForm({ pass: '', confirm: '' });
+            showAlert("Success", "Decoy Vault Configured!\n\nEnter this code on the lock screen to access the fake vault.");
+        } catch (e: any) {
+            showAlert("Error", e.message);
+        } finally {
+            setIsProcessing(false);
+            setProcessingStatus("Performing crypto operations...");
+        }
+    };
 
-    setIsProcessing(true);
-    try {
-      await SecureVault.setDecoyCredential({
-        decoyPassword: decoyForm.pass,
-        masterPassword: master
-      });
-      setHasDecoy(true);
-      setShowDecoySetup(false);
-      setDecoyForm({ pass: '', confirm: '' });
-      alert("Decoy Vault Configured!\n\nEnter this code on the lock screen to access the fake vault.");
-    } catch (e: any) {
-      alert("Error: " + e.message);
-    } finally {
-      setIsProcessing(false);
+    // Check if password exists in session (it should), if not prompt
+    if (password) {
+        processDecoy(password);
+    } else {
+        showPrompt(
+            "Security Check", 
+            "Please confirm your MASTER password:", 
+            (val) => processDecoy(val), 
+            'password', 
+            'Master Password'
+        );
     }
   };
 
   const handleRemoveDecoy = async () => {
-    if(!confirm("Remove Decoy Vault? This will wipe all files inside the decoy vault.")) return;
-    
-    // Use stored session password
-    let master = password;
-    if (!master) {
-      master = prompt("Enter MASTER password to confirm:") || '';
-      if (!master) return;
-    }
+    const processRemove = async (master: string) => {
+        try {
+          await SecureVault.removeDecoyCredential(master);
+          setHasDecoy(false);
+          showAlert("Success", "Decoy removed.");
+        } catch (e: any) {
+          showAlert("Error", e.message);
+        }
+    };
 
-    try {
-      await SecureVault.removeDecoyCredential(master);
-      setHasDecoy(false);
-      alert("Decoy removed.");
-    } catch (e: any) {
-      alert(e.message);
-    }
+    const confirmMaster = () => {
+        if (password) {
+            processRemove(password);
+        } else {
+            showPrompt(
+                "Security Check", 
+                "Enter MASTER password to confirm:", 
+                (val) => processRemove(val), 
+                'password', 
+                'Master Password'
+            );
+        }
+    };
+
+    showConfirm(
+        "Remove Decoy?", 
+        "This will wipe all files inside the decoy vault.", 
+        confirmMaster, 
+        'danger'
+    );
   };
 
   // --- INTRUDER HANDLERS ---
@@ -447,6 +592,30 @@ export default function App() {
       setIntruderLogs(logs);
       setState('INTRUDER_LOGS');
   };
+  
+  const openIntruderSettings = async () => {
+     const settings = await SecureVault.getIntruderSettings();
+     setIntruderConfig(settings);
+     setShowIntruderSettings(true);
+  };
+  
+  const saveIntruderSettings = async () => {
+     try {
+       await SecureVault.setIntruderSettings(intruderConfig);
+       setShowIntruderSettings(false);
+     } catch (e) {
+       showAlert("Error", "Failed to save settings");
+     }
+  };
+  
+  const checkCameraPermission = async () => {
+      const { granted } = await SecureVault.checkCameraPermission();
+      if (granted) {
+          showAlert("Permission Status", "Camera Permission Granted");
+      } else {
+          showAlert("Permission Status", "Camera Permission Denied or Unavailable. Please check device settings.");
+      }
+  };
 
   const handleViewIntruderImage = async (img: VaultItem) => {
       try {
@@ -454,19 +623,25 @@ export default function App() {
           const { uri } = await SecureVault.previewFile({ id: img.id, password });
           setPreviewUri(uri);
       } catch (e) {
-          alert("Could not load image");
+          showAlert("Error", "Could not load image");
       }
   };
 
   const handleDeleteIntruderSession = async (session: IntruderSession) => {
-      if(!confirm("Delete this evidence log?")) return;
-      try {
-          await SecureVault.deleteIntruderSession({ timestamp: session.timestamp });
-          setIntruderLogs(prev => prev.filter(p => p.timestamp !== session.timestamp));
-          setSelectedIntruderSession(null);
-      } catch(e) {
-          alert("Failed to delete");
-      }
+      showConfirm(
+          "Delete Log", 
+          "Delete this evidence log?", 
+          async () => {
+            try {
+                await SecureVault.deleteIntruderSession({ timestamp: session.timestamp });
+                setIntruderLogs(prev => prev.filter(p => p.timestamp !== session.timestamp));
+                setSelectedIntruderSession(null);
+            } catch(e) {
+                showAlert("Error", "Failed to delete");
+            }
+          }, 
+          'danger'
+      );
   };
 
   // State Management Hooks
@@ -720,7 +895,7 @@ export default function App() {
             </Card>
           </main>
 
-          <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" />
+          <input type="file" multiple ref={fileInputRef} onChange={handleImport} className="hidden" />
           <FloatingActionButton onClick={() => {
             isPickingFileRef.current = true;
             fileInputRef.current?.click();
@@ -730,76 +905,185 @@ export default function App() {
 
       {/* --- INTRUDER LOGS STATE --- */}
       {state === 'INTRUDER_LOGS' && (
-        <div className="animate-in fade-in slide-in-from-right-8 duration-300 min-h-screen">
-          <header className="sticky top-0 z-40 bg-vault-900/80 backdrop-blur-md border-b border-vault-800 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <div className="animate-in fade-in slide-in-from-right-8 duration-300 min-h-screen bg-vault-900">
+          <header className="sticky top-0 z-40 bg-vault-900/90 backdrop-blur-xl border-b border-vault-800 p-4 flex items-center justify-between shadow-lg shadow-black/20">
+            <div className="flex items-center gap-3">
               <button 
                 onClick={() => selectedIntruderSession ? setSelectedIntruderSession(null) : setState('SETTINGS')} 
-                className="text-vault-400 hover:text-white"
+                className="p-2 -ml-2 rounded-full text-vault-400 hover:text-white hover:bg-vault-800 transition-colors"
               >
                 <Icons.ArrowLeft />
               </button>
-              <h2 className="font-bold text-lg text-red-400 flex items-center gap-2">
-                <Icons.Alert /> Intruder Evidence
-              </h2>
+              <div>
+                  <h2 className="font-bold text-lg text-white flex items-center gap-2">
+                    Evidence Logs
+                  </h2>
+                  <p className="text-xs text-red-400 font-medium tracking-wide uppercase">Intruder Detection System</p>
+              </div>
             </div>
+            {selectedIntruderSession && (
+                <div className="text-xs text-vault-500 font-mono hidden sm:block">
+                    Session ID: {selectedIntruderSession.id}
+                </div>
+            )}
           </header>
 
-          <main className="p-4 max-w-lg mx-auto">
+          <main className="p-4 max-w-2xl mx-auto min-h-[calc(100vh-80px)]">
              {!selectedIntruderSession ? (
-               <div className="space-y-4">
+               <div className="space-y-6">
                  {intruderLogs.length === 0 ? (
-                    <div className="text-center py-20 text-vault-500">
-                       <Icons.Shield />
-                       <p className="mt-4">No intrusion attempts detected.</p>
+                    <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-8 py-12 animate-in zoom-in-95 duration-500">
+                       <div className="relative group cursor-default">
+                          <div className="absolute inset-0 bg-green-500/10 blur-3xl rounded-full group-hover:bg-green-500/20 transition-colors duration-500"></div>
+                          <div className="relative w-32 h-32 bg-gradient-to-br from-vault-800 to-vault-900 rounded-[2rem] border border-vault-700 flex items-center justify-center text-green-500 shadow-2xl shadow-black/50 group-hover:scale-105 transition-transform duration-300">
+                              <div className="scale-150"><Icons.Shield /></div>
+                              <div className="absolute -bottom-2 -right-2 bg-green-500 text-vault-900 rounded-full p-1.5 border-[6px] border-vault-900 shadow-sm">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" /></svg>
+                              </div>
+                          </div>
+                       </div>
+                       <div className="space-y-3 max-w-sm mx-auto">
+                           <h3 className="text-2xl font-bold text-white">No Intruders Detected</h3>
+                           <p className="text-vault-400 text-sm leading-relaxed">
+                             Your vault is secure. The intruder detection system has not recorded any unauthorized access attempts or failed login sequences.
+                           </p>
+                       </div>
+                       <Button variant="outline" onClick={() => setState('SETTINGS')} className="mt-4 border-vault-700 bg-vault-800/50 hover:bg-vault-800">
+                          Configure Sensitivity
+                       </Button>
                     </div>
                  ) : (
-                    intruderLogs.map(session => (
-                      <Card key={session.id} className="p-4 flex items-center justify-between hover:bg-vault-700/50 transition cursor-pointer" onClick={() => setSelectedIntruderSession(session) }>
-                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center text-red-500">
-                               <Icons.Camera />
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between px-2 pb-2 border-b border-vault-800">
+                            <h3 className="text-xs font-bold text-vault-400 uppercase tracking-widest">Recent Activity</h3>
+                            <span className="text-xs font-mono text-vault-500">{intruderLogs.length} EVENTS</span>
+                        </div>
+                        {intruderLogs.map((session) => (
+                            <div 
+                                key={session.id}
+                                onClick={() => setSelectedIntruderSession(session)}
+                                className="group relative bg-vault-800/50 hover:bg-vault-800 rounded-xl border border-vault-700/50 hover:border-red-500/30 p-4 transition-all duration-200 cursor-pointer overflow-hidden active:scale-[0.99]"
+                            >
+                                {/* Active Indicator Strip */}
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-red-600 opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                                
+                                <div className="flex items-center gap-4 pl-2">
+                                    <div className="relative">
+                                        <div className="w-14 h-14 rounded-lg bg-vault-900 border border-vault-700 flex items-center justify-center text-red-500/80 group-hover:text-red-400 group-hover:border-red-500/20 transition-all shadow-inner">
+                                            <Icons.Camera />
+                                        </div>
+                                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-md border-2 border-vault-800 shadow-sm">
+                                            {session.images.length}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0 py-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <h4 className="font-bold text-slate-200 text-sm truncate group-hover:text-white transition-colors">Unauthorized Access</h4>
+                                            <span className="text-[10px] text-vault-500 group-hover:text-vault-400 bg-vault-900/50 px-2 py-0.5 rounded-full font-mono">
+                                                {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-vault-500 group-hover:text-vault-400 truncate flex items-center gap-2">
+                                            <span>{new Date(session.timestamp).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="text-vault-600 group-hover:text-red-400 transition-colors transform group-hover:translate-x-1 duration-200 rotate-180">
+                                        <Icons.ArrowLeft />
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                               <h4 className="font-bold text-white">{new Date(session.timestamp).toLocaleDateString()}</h4>
-                               <p className="text-sm text-vault-400">{new Date(session.timestamp).toLocaleTimeString()}</p>
-                            </div>
-                         </div>
-                         <div className="text-right">
-                            <span className="bg-vault-700 text-xs px-2 py-1 rounded-full text-white">{session.images.length} Photos</span>
-                         </div>
-                      </Card>
-                    ))
+                        ))}
+                    </div>
                  )}
                </div>
              ) : (
-               <div className="space-y-6">
-                  <div className="flex justify-between items-center bg-vault-800 p-4 rounded-lg border border-vault-700">
-                      <div>
-                         <h3 className="font-bold text-white">Evidence Log</h3>
-                         <p className="text-xs text-vault-400">{new Date(selectedIntruderSession.timestamp).toLocaleString()}</p>
+               <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-300">
+                  {/* Summary Card */}
+                  <div className="bg-gradient-to-br from-vault-800 to-vault-900 rounded-2xl p-6 border border-vault-700/50 shadow-xl relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity text-red-500 transform translate-x-4 -translate-y-4 scale-150">
+                          <Icons.Shield />
                       </div>
-                      <Button variant="danger" className="py-2 px-3 text-sm" onClick={() => handleDeleteIntruderSession(selectedIntruderSession)}>
-                         Delete Log
-                      </Button>
+                      
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+                          <div className="space-y-1">
+                             <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                                <span className="relative flex h-3 w-3">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                </span>
+                                Intrusion Detected
+                             </h2>
+                             <div className="flex items-center gap-2 text-sm text-vault-400 font-mono">
+                                <span className="bg-vault-950/50 px-2 py-0.5 rounded text-vault-300 border border-vault-700/50">
+                                    {new Date(selectedIntruderSession.timestamp).toLocaleDateString()}
+                                </span>
+                                <span className="text-vault-600">at</span>
+                                <span className="text-white">
+                                    {new Date(selectedIntruderSession.timestamp).toLocaleTimeString()}
+                                </span>
+                             </div>
+                          </div>
+                          
+                          <Button 
+                            variant="danger" 
+                            className="w-full sm:w-auto py-2 px-4 text-xs font-bold tracking-wide shadow-lg shadow-red-900/20 border border-red-500/20" 
+                            onClick={() => handleDeleteIntruderSession(selectedIntruderSession)}
+                          >
+                             DELETE LOG
+                          </Button>
+                      </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                     {selectedIntruderSession.images.map((img, idx) => (
-                        <div key={img.id} className="relative aspect-square bg-black rounded-xl overflow-hidden border border-vault-700 group">
-                           <button 
-                             onClick={() => handleViewIntruderImage(img)}
-                             className="absolute inset-0 flex items-center justify-center bg-white/5 opacity-0 group-hover:opacity-100 transition"
-                           >
-                             <Icons.Eye />
-                           </button>
-                           {/* Using a placeholder visual until clicked to simulate encrypted storage */}
-                           <div className="w-full h-full flex flex-col items-center justify-center text-vault-500">
-                              <Icons.Camera />
-                              <span className="text-xs mt-2 uppercase font-bold">{img.originalName.includes('front') ? 'Front' : 'Back'} Cam</span>
-                           </div>
-                        </div>
-                     ))}
+                  {/* Evidence Grid */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4 px-1">
+                        <h3 className="text-sm font-bold text-vault-400 uppercase tracking-widest flex items-center gap-2">
+                            <Icons.Camera /> Captured Evidence
+                        </h3>
+                        <span className="text-xs bg-vault-800 text-vault-500 px-2 py-1 rounded-full border border-vault-700">
+                            {selectedIntruderSession.images.length} FILES
+                        </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {selectedIntruderSession.images.map((img, idx) => (
+                            <div 
+                                key={img.id} 
+                                className="group relative aspect-[3/4] bg-vault-950 rounded-xl overflow-hidden border border-vault-800 shadow-lg cursor-zoom-in hover:border-vault-600 transition-all duration-300 hover:shadow-2xl hover:shadow-black/50"
+                                onClick={() => handleViewIntruderImage(img)}
+                            >
+                                {/* Static Background/Placeholder */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-vault-700 group-hover:text-vault-600 transition-colors">
+                                    <div className="p-4 rounded-full bg-vault-900 border border-vault-800 mb-3 group-hover:scale-110 transition-transform duration-300">
+                                        <Icons.Camera />
+                                    </div>
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="text-[10px] font-bold tracking-widest uppercase text-vault-500">
+                                            {img.originalName.includes('front') ? 'Front Cam' : (img.originalName.includes('back') ? 'Back Cam' : 'Camera ' + (idx+1))}
+                                        </span>
+                                        <span className="text-[9px] font-mono text-vault-600 bg-vault-900/50 px-1.5 rounded">ENCRYPTED</span>
+                                    </div>
+                                </div>
+                                
+                                {/* Hover Action Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-vault-900/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                                    <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                                        <p className="text-white text-xs font-bold flex items-center gap-2 mb-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Decrypt & View
+                                        </p>
+                                        <p className="text-[10px] text-vault-400">Tap to unlock preview</p>
+                                    </div>
+                                </div>
+                                
+                                {/* Corner Index */}
+                                <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-mono text-white/90 border border-white/10 shadow-sm">
+                                    #{idx + 1}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                   </div>
                </div>
              )}
@@ -807,9 +1091,21 @@ export default function App() {
 
           {/* Image Preview Modal */}
           <Modal isOpen={!!previewUri}>
-             <div className="relative max-w-lg w-full">
-                 <button onClick={() => setPreviewUri(null)} className="absolute -top-12 right-0 text-white p-2">Close</button>
-                 {previewUri && <img src={previewUri} alt="Evidence" className="w-full rounded-lg shadow-2xl border border-vault-600" />}
+             <div className="relative max-w-lg w-full bg-transparent shadow-none border-none p-0 flex flex-col items-center">
+                 <button 
+                    onClick={() => setPreviewUri(null)} 
+                    className="absolute -top-12 right-0 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full backdrop-blur-sm transition-all"
+                >
+                    <Icons.X />
+                </button>
+                 {previewUri && (
+                    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-vault-600/50 bg-black">
+                        <img src={previewUri} alt="Evidence" className="max-h-[80vh] w-auto object-contain" />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                            <p className="text-white text-xs font-mono text-center opacity-70">CONFIDENTIAL EVIDENCE - DO NOT SHARE</p>
+                        </div>
+                    </div>
+                 )}
              </div>
           </Modal>
         </div>
@@ -830,20 +1126,28 @@ export default function App() {
           <main className="p-4 max-w-lg mx-auto space-y-6">
             <Card className="p-6 space-y-6">
               
-              {/* Intruder Selfie Access */}
+              {/* Intruder Settings Entry */}
               <div className="pb-6 border-b border-vault-700">
-                  <button 
+                   <div className="flex items-center justify-between mb-4">
+                       <h3 className="text-lg font-medium text-white flex items-center gap-2">
+                         <span className="text-red-400"><Icons.Camera /></span> Intruder Detection
+                       </h3>
+                       <button onClick={openIntruderSettings} className="p-2 rounded-full hover:bg-vault-700 text-vault-400 transition">
+                           <Icons.Cog />
+                       </button>
+                   </div>
+                   <button 
                     onClick={fetchIntruderLogs}
                     className="w-full flex items-center justify-between p-4 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all group"
                   >
                      <div className="flex items-center gap-3">
-                        <div className="text-red-400 group-hover:scale-110 transition-transform"><Icons.Camera /></div>
+                        <div className="text-red-400 group-hover:scale-110 transition-transform"><Icons.Alert /></div>
                         <div className="text-left">
-                           <h3 className="font-bold text-red-100">Intruder Evidence</h3>
-                           <p className="text-xs text-red-300/70">View unauthorized access attempts</p>
+                           <h3 className="font-bold text-red-100">View Evidence Logs</h3>
+                           <p className="text-xs text-red-300/70">Check unauthorized access attempts</p>
                         </div>
                      </div>
-                     <div className="text-red-400"><Icons.ArrowLeft /></div> {/* Using ArrowLeft rotated as chevron substitute */}
+                     <div className="text-red-400 rotate-180"><Icons.ArrowLeft /></div> 
                   </button>
               </div>
 
@@ -857,12 +1161,7 @@ export default function App() {
                        </h3>
                        <p className="text-sm text-vault-400 mt-1">Use Fingerprint/FaceID to access vault</p>
                      </div>
-                     <button 
-                       onClick={toggleBiometrics}
-                       className={`w-14 h-8 rounded-full transition-colors relative ${bioEnabled ? 'bg-vault-accent' : 'bg-vault-700'}`}
-                     >
-                       <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full transition-transform ${bioEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                     </button>
+                     <Toggle checked={bioEnabled} onChange={toggleBiometrics} />
                   </div>
                 </div>
               )}
@@ -876,12 +1175,7 @@ export default function App() {
                        </h3>
                        <p className="text-sm text-vault-400 mt-1">Setup a Decoy Vault (Fake PIN)</p>
                      </div>
-                     <button 
-                       onClick={() => hasDecoy ? handleRemoveDecoy() : setShowDecoySetup(true)}
-                       className={`w-14 h-8 rounded-full transition-colors relative ${hasDecoy ? 'bg-amber-500' : 'bg-vault-700'}`}
-                     >
-                       <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full transition-transform ${hasDecoy ? 'translate-x-6' : 'translate-x-0'}`} />
-                     </button>
+                     <Toggle checked={hasDecoy} onChange={() => hasDecoy ? handleRemoveDecoy() : setShowDecoySetup(true)} />
                   </div>
                   {showDecoySetup && (
                     <div className="mt-4 p-4 bg-vault-900/50 rounded-lg border border-vault-700 space-y-3 animate-in fade-in zoom-in-95">
@@ -1000,6 +1294,87 @@ export default function App() {
           </main>
         </div>
       )}
+      
+      {/* Intruder Settings Modal */}
+      <Modal isOpen={showIntruderSettings}>
+          <div className="bg-vault-800 p-6 rounded-2xl w-full max-w-sm space-y-6 border border-vault-700 shadow-2xl animate-in zoom-in-95 relative">
+              <button 
+                  onClick={() => setShowIntruderSettings(false)}
+                  className="absolute top-4 right-4 text-vault-400 hover:text-white"
+              >
+                  <Icons.X />
+              </button>
+              
+              <div className="text-center">
+                  <h3 className="text-xl font-bold text-white">Intruder Detection</h3>
+                  <p className="text-sm text-vault-400 mt-1">Silent selfie on failed attempts</p>
+              </div>
+
+              <div className="space-y-6">
+                  {/* Enable Switch */}
+                  <div className="flex items-center justify-between bg-vault-900/50 p-4 rounded-xl border border-vault-700">
+                      <span className="font-medium text-white">Enabled</span>
+                      <Toggle 
+                          checked={intruderConfig.enabled} 
+                          onChange={e => setIntruderConfig(c => ({...c, enabled: e}))} 
+                      />
+                  </div>
+
+                  {/* Photo Count */}
+                  <div className="space-y-3">
+                      <label className="text-xs text-vault-400 uppercase font-bold">Photos to Capture</label>
+                      <SegmentedControl 
+                          options={[
+                              { label: '1', value: 1 },
+                              { label: '2', value: 2 },
+                              { label: '3', value: 3 },
+                          ]}
+                          value={intruderConfig.photoCount}
+                          onChange={v => setIntruderConfig(c => ({...c, photoCount: v}))}
+                          disabled={!intruderConfig.enabled}
+                      />
+                  </div>
+
+                  {/* Camera Source */}
+                  <div className="space-y-3">
+                      <label className="text-xs text-vault-400 uppercase font-bold">Camera Source</label>
+                      <SegmentedControl 
+                          options={[
+                              { label: 'FRONT', value: 'FRONT' },
+                              { label: 'BACK', value: 'BACK' },
+                              { label: 'BOTH', value: 'BOTH' },
+                          ]}
+                          value={intruderConfig.source}
+                          onChange={v => setIntruderConfig(c => ({...c, source: v}))}
+                          // Disable Back/Both on Web (non-native) for simplicity/reliability
+                          disabled={!intruderConfig.enabled || (!isNative && intruderConfig.source !== 'FRONT')} 
+                      />
+                      {!isNative && (
+                          <p className="text-xs text-amber-500/80 mt-1">
+                              * Multi-camera support is limited to Native App
+                          </p>
+                      )}
+                  </div>
+              </div>
+
+              <div className="pt-2 space-y-3">
+                 <Button 
+                   variant="outline" 
+                   className="w-full text-sm"
+                   onClick={checkCameraPermission}
+                 >
+                   <Icons.Camera /> Check Permission
+                 </Button>
+                 
+                 <Button 
+                   className="w-full"
+                   onClick={saveIntruderSettings}
+                 >
+                   Save Settings
+                 </Button>
+              </div>
+          </div>
+      </Modal>
 
       {/* Reset Confirmation Modal */}
       <Modal isOpen={showResetConfirm}>
@@ -1034,19 +1409,64 @@ export default function App() {
           </div>
       </Modal>
 
+      {/* Confirmation Action Modal */}
+      <Modal isOpen={!!confirmAction}>
+        <div className="bg-vault-800 p-6 rounded-2xl w-full max-w-sm space-y-6 border border-vault-700 shadow-2xl animate-in zoom-in-95">
+          <div className="text-center space-y-3">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${
+              confirmAction?.type === 'DELETE' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'
+            }`}>
+              {confirmAction?.type === 'DELETE' ? <Icons.Trash /> : <Icons.Download />}
+            </div>
+            <h3 className="text-xl font-bold text-white">
+              {confirmAction?.type === 'DELETE' ? 'Delete File?' : 'Export File?'}
+            </h3>
+            <p className="text-sm text-vault-400 px-4">
+              {confirmAction?.type === 'DELETE' 
+                ? 'This file will be permanently removed from the vault. This action cannot be undone.'
+                : 'The file will be decrypted and saved to your device Downloads folder.'}
+            </p>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button variant="ghost" className="flex-1" onClick={() => setConfirmAction(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant={confirmAction?.type === 'DELETE' ? 'danger' : 'primary'} 
+              className="flex-1" 
+              onClick={performConfirmedAction}
+            >
+              {confirmAction?.type === 'DELETE' ? 'Delete Forever' : 'Decrypt & Save'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Progress Overlay */}
       <Modal isOpen={isProcessing}>
           <div className="bg-vault-800 p-6 rounded-2xl w-full max-w-xs text-center space-y-4 shadow-2xl border border-vault-700">
             <div className="w-12 h-12 border-4 border-vault-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
             <div>
               <h3 className="font-bold text-white">Processing...</h3>
-              <p className="text-xs text-vault-400 mt-1">Performing crypto operations...</p>
+              <p className="text-xs text-vault-400 mt-1 whitespace-pre-line">{processingStatus}</p>
             </div>
             <div className="h-1 bg-vault-900 rounded-full overflow-hidden">
               <div className="h-full bg-vault-accent transition-all duration-300" style={{width: `${progress}%`}} />
             </div>
           </div>
       </Modal>
+
+      {/* Global Dialog Overlay */}
+      <DialogModal 
+        isOpen={dialog.isOpen}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        variant={dialog.variant}
+        onConfirm={dialog.onConfirm}
+        onCancel={dialog.onCancel}
+        inputProps={dialog.inputProps}
+      />
 
       {/* Universal File Viewer */}
       {viewingItem && (

@@ -7,11 +7,11 @@ export const Icons = {
   Unlock: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>,
   Shield: () => <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
   Plus: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
-  Trash: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  Trash: () => <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
   File: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
   Eye: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
   EyeOff: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
-  Download: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+  Download: () => <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
   Cog: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
   ArrowLeft: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>,
   Backspace: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" /></svg>,
@@ -23,7 +23,8 @@ export const Icons = {
   Image: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
   Zip: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
   Android: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
-  Text: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+  Text: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  X: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
 };
 
 // --- Helper for File Types ---
@@ -45,20 +46,55 @@ export const Card: React.FC<{ children: React.ReactNode; className?: string; onC
   </div>
 );
 
-export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'ghost' }> = ({ 
+export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'ghost' | 'outline' }> = ({ 
   children, variant = 'primary', className = '', ...props 
 }) => {
   const baseStyle = "px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
     primary: "bg-vault-accent hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20",
     danger: "bg-vault-danger hover:bg-red-600 text-white shadow-lg shadow-red-500/20",
-    ghost: "bg-transparent hover:bg-vault-700 text-vault-400 hover:text-white"
+    ghost: "bg-transparent hover:bg-vault-700 text-vault-400 hover:text-white",
+    outline: "bg-transparent border border-vault-700 hover:bg-vault-700 text-vault-400 hover:text-white"
   };
   
   return (
     <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
       {children}
     </button>
+  );
+};
+
+export const Toggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({ checked, onChange }) => (
+  <button 
+    onClick={() => onChange(!checked)}
+    className={`w-14 h-8 rounded-full transition-colors relative ${checked ? 'bg-vault-accent' : 'bg-vault-700'}`}
+  >
+    <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transition-transform ${checked ? 'translate-x-6' : 'translate-x-0'}`} />
+  </button>
+);
+
+export const SegmentedControl: React.FC<{
+  options: { label: string; value: any }[];
+  value: any;
+  onChange: (value: any) => void;
+  disabled?: boolean;
+}> = ({ options, value, onChange, disabled }) => {
+  return (
+    <div className={`flex bg-vault-800 p-1 rounded-lg border border-vault-700 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      {options.map((opt) => (
+        <button
+          key={String(opt.value)}
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 py-2 text-xs font-bold rounded transition-all ${
+            value === opt.value
+              ? 'bg-vault-accent text-white shadow'
+              : 'text-vault-400 hover:text-white hover:bg-vault-700'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
   );
 };
 
@@ -177,7 +213,7 @@ export const VaultList: React.FC<{
       {items.map(item => (
         <div 
           key={item.id} 
-          className="p-4 hover:bg-vault-700/30 transition-colors flex items-center justify-between group cursor-pointer"
+          className="p-4 hover:bg-vault-700/30 transition-colors flex items-center justify-between group cursor-pointer relative"
           onClick={() => onView(item)}
         >
           <div className="flex items-center gap-4 overflow-hidden">
@@ -191,16 +227,24 @@ export const VaultList: React.FC<{
               </p>
             </div>
           </div>
-          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+          <div className="flex gap-1 relative z-10">
              <button 
-              onClick={() => onExport(item.id)}
+              type="button"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onExport(item.id); 
+              }}
               className="p-2 text-vault-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
               title="Decrypt & Export"
             >
               <Icons.Download />
             </button>
             <button 
-              onClick={() => onDelete(item.id)}
+              type="button"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onDelete(item.id); 
+              }}
               className="p-2 text-vault-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
               title="Delete Permanently"
             >
@@ -220,6 +264,76 @@ export const Modal: React.FC<{ children: React.ReactNode; isOpen: boolean }> = (
       {children}
     </div>
   );
+};
+
+// --- Custom Dialog System ---
+export interface DialogProps {
+  isOpen: boolean;
+  type: 'ALERT' | 'CONFIRM' | 'PROMPT';
+  title: string;
+  message: string;
+  variant?: 'info' | 'danger' | 'success';
+  onConfirm: (value?: string) => void;
+  onCancel: () => void;
+  inputProps?: {
+    placeholder?: string;
+    type?: 'text' | 'password' | 'tel' | 'number';
+    defaultValue?: string;
+  };
+}
+
+export const DialogModal: React.FC<DialogProps> = ({ isOpen, type, title, message, variant = 'info', onConfirm, onCancel, inputProps }) => {
+    const [val, setVal] = useState(inputProps?.defaultValue || '');
+    
+    // reset val when opening
+    useEffect(() => {
+        if(isOpen) setVal(inputProps?.defaultValue || '');
+    }, [isOpen, inputProps?.defaultValue]);
+
+    if (!isOpen) return null;
+    
+    const handleConfirm = () => {
+        onConfirm(val);
+        setVal('');
+    };
+
+    return (
+        <Modal isOpen={isOpen}>
+            <div className={`bg-vault-800 p-6 rounded-2xl w-full max-w-sm space-y-4 border shadow-2xl animate-in zoom-in-95 ${variant === 'danger' ? 'border-red-500/30' : 'border-vault-700'}`}>
+                <div className="text-center space-y-2">
+                     <div className={`flex justify-center mb-2 ${variant === 'danger' ? 'text-red-500' : 'text-vault-accent'}`}>
+                        {variant === 'danger' ? <Icons.Alert /> : <Icons.Shield />}
+                     </div>
+                     <h3 className={`text-xl font-bold ${variant === 'danger' ? 'text-red-500' : 'text-white'}`}>{title}</h3>
+                     <p className="text-sm text-vault-400 whitespace-pre-wrap">{message}</p>
+                </div>
+
+                {type === 'PROMPT' && (
+                    <input 
+                        autoFocus
+                        className="w-full bg-vault-900 border border-vault-700 rounded-lg p-3 text-white focus:border-vault-accent focus:outline-none placeholder-vault-600"
+                        {...inputProps}
+                        value={val}
+                        onChange={(e) => setVal(e.target.value)}
+                    />
+                )}
+
+                <div className="flex gap-3 pt-2">
+                    {type !== 'ALERT' && (
+                        <Button variant="ghost" onClick={onCancel} className="flex-1">Cancel</Button>
+                    )}
+                    <Button 
+                        variant={variant === 'danger' ? 'danger' : 'primary'} 
+                        className={`flex-1 ${type === 'ALERT' ? 'w-full' : ''}`}
+                        onClick={handleConfirm}
+                        disabled={type === 'PROMPT' && !val}
+                    >
+                        {type === 'ALERT' ? 'OK' : 'Confirm'}
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    );
 };
 
 // --- Secure File Viewer ---
