@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { Button } from '../ui/Button';
 import { Icons } from '../icons/Icons';
-
 export interface DialogProps {
   isOpen: boolean;
   type: 'ALERT' | 'CONFIRM' | 'PROMPT';
@@ -17,22 +16,16 @@ export interface DialogProps {
     defaultValue?: string;
   };
 }
-
 export const DialogModal: React.FC<DialogProps> = ({ isOpen, type, title, message, variant = 'info', onConfirm, onCancel, inputProps }) => {
     const [val, setVal] = useState(inputProps?.defaultValue || '');
-    
-    // reset val when opening
     useEffect(() => {
         if(isOpen) setVal(inputProps?.defaultValue || '');
     }, [isOpen, inputProps?.defaultValue]);
-
     if (!isOpen) return null;
-    
     const handleConfirm = () => {
         onConfirm(val);
         setVal('');
     };
-
     return (
         <BaseModal isOpen={isOpen}>
             <div className={`bg-vault-800 p-6 rounded-2xl w-full max-w-sm space-y-4 border shadow-2xl animate-in zoom-in-95 ${variant === 'danger' ? 'border-red-500/30' : 'border-vault-700'}`}>
@@ -43,7 +36,6 @@ export const DialogModal: React.FC<DialogProps> = ({ isOpen, type, title, messag
                      <h3 className={`text-xl font-bold ${variant === 'danger' ? 'text-red-500' : 'text-white'}`}>{title}</h3>
                      <p className="text-sm text-vault-400 whitespace-pre-wrap">{message}</p>
                 </div>
-
                 {type === 'PROMPT' && (
                     <input 
                         autoFocus
@@ -53,7 +45,6 @@ export const DialogModal: React.FC<DialogProps> = ({ isOpen, type, title, messag
                         onChange={(e) => setVal(e.target.value)}
                     />
                 )}
-
                 <div className="flex gap-3 pt-2">
                     {type !== 'ALERT' && (
                         <Button variant="ghost" onClick={onCancel} className="flex-1">Cancel</Button>

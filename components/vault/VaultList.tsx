@@ -2,7 +2,6 @@ import React from 'react';
 import type { VaultItem } from '../../types';
 import { Icons } from '../icons/Icons';
 import { VaultListItem } from './VaultListItem';
-
 interface VaultListProps { 
   items: VaultItem[];
   selectionMode: boolean;
@@ -12,16 +11,13 @@ interface VaultListProps {
   onView: (item: VaultItem) => void;
   onMenu: (item: VaultItem) => void;
 }
-
 export const VaultList: React.FC<VaultListProps> = ({ 
   items, selectionMode, selectedIds, onSelect, onNavigate, onView, onMenu 
 }) => {
-  // Sort: Folders first, then files
   const sortedItems = [...items].sort((a, b) => {
       if (a.type === b.type) return b.importedAt - a.importedAt;
       return a.type === 'FOLDER' ? -1 : 1;
   });
-
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-vault-500 gap-4">
@@ -32,7 +28,6 @@ export const VaultList: React.FC<VaultListProps> = ({
       </div>
     );
   }
-
   return (
     <div className="divide-y divide-vault-700/50 pb-20">
       {sortedItems.map(item => (

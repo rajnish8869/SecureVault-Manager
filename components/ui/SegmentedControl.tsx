@@ -1,5 +1,4 @@
 import React from 'react';
-
 export const SegmentedControl: React.FC<{
   options: { label: string; value: any }[];
   value: any;

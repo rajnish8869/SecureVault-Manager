@@ -1,5 +1,4 @@
 import React from "react";
-
 export const Icons = {
   Lock: () => (
     <svg
@@ -445,7 +444,6 @@ export const Icons = {
     </svg>
   ),
 };
-
 export const getFileIcon = (mime: string, name: string) => {
   if (mime === "application/vnd.google-apps.folder") return <Icons.Folder />;
   if (mime.startsWith("image/")) return <Icons.Image />;

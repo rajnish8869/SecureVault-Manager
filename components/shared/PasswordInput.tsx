@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Icons } from '../icons/Icons';
-
 export const PasswordInput: React.FC<{
   value: string;
   onChange: (val: string) => void;
@@ -11,16 +10,13 @@ export const PasswordInput: React.FC<{
   error?: boolean;
 }> = ({ value, onChange, placeholder = "Enter Password", disabled, numeric, maxLength, error }) => {
   const [show, setShow] = useState(false);
-  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
-    // Enforce numeric input if strict mode is on
     if (numeric) {
       val = val.replace(/[^0-9]/g, '');
     }
     onChange(val);
   };
-
   return (
     <div className="relative group">
       <input

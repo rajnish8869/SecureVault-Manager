@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import { Card, Button, PasswordInput, PinDisplay, NumberPad, Icons } from '../components/UI';
 import type { LockType } from '../types';
-
 interface SetupViewProps {
   onSetup: (password: string, type: LockType) => Promise<void>;
   isProcessing: boolean;
 }
-
 export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) => {
   const [targetType, setTargetType] = useState<LockType>('PASSWORD');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  
-  // PIN specific state
   const [pinStep, setPinStep] = useState<'CREATE' | 'CONFIRM'>('CREATE');
   const [tempPin, setTempPin] = useState('');
-
   const handlePasswordSubmit = () => {
       if(password !== confirm) {
           alert("Passwords do not match");
@@ -23,7 +18,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
       }
       onSetup(password, 'PASSWORD');
   };
-
   const handlePinDigit = (d: string) => {
       if(password.length < 6) {
           const newVal = password + d;
@@ -48,7 +42,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
           }
       }
   };
-
   return (
     <div className="min-h-dvh flex items-center justify-center p-6 animate-in fade-in duration-500 bg-vault-950">
       <div className="w-full max-w-sm space-y-8">
@@ -59,7 +52,6 @@ export const SetupView: React.FC<SetupViewProps> = ({ onSetup, isProcessing }) =
             <h1 className="text-2xl font-bold text-white">Welcome to SecureVault</h1>
             <p className="text-sm text-vault-400">Choose how you want to lock your files.</p>
         </div>
-
         {targetType === 'PASSWORD' ? (
             <Card className="p-6 space-y-6 shadow-2xl">
                 <div className="grid grid-cols-2 gap-3">

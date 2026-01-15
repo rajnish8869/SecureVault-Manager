@@ -1,5 +1,4 @@
 import React from 'react';
-
 export const BaseModal: React.FC<{ children: React.ReactNode; isOpen: boolean }> = ({ children, isOpen }) => {
   if (!isOpen) return null;
   return (
@@ -8,6 +7,4 @@ export const BaseModal: React.FC<{ children: React.ReactNode; isOpen: boolean }>
     </div>
   );
 };
-
-// Export alias for backward compatibility
 export { BaseModal as Modal };

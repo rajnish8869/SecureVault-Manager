@@ -2,38 +2,22 @@ import React, { useState, useEffect } from "react";
 import type { VaultItem, FileTypeCategory } from "../../types";
 import { Icons, getFileIcon } from "../icons/Icons";
 import { FileTypeDetector } from "../../services/FileTypeDetector";
-
-/**
- * Enhanced FileViewer Component
- *
- * Integrates FileOpenService for:
- * - Robust file type detection
- * - Platform-aware handling (web vs native)
- * - Progress tracking for large files
- * - Better error messaging
- * - Secure preview handling
- */
-
 interface FileViewerProps {
   item: VaultItem;
   uri: string | null;
   onClose: () => void;
   onOpenNative?: () => void;
 }
-
 export const FileViewer: React.FC<FileViewerProps> = ({
   item,
   uri,
   onClose,
   onOpenNative,
 }) => {
-  // Detect category from MIME type
   const [category, setCategory] = useState<FileTypeCategory>("UNKNOWN");
   const [textContent, setTextContent] = useState<string>("Loading...");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // Initialize file type detection
   useEffect(() => {
     const detectType = async () => {
       try {
@@ -47,15 +31,11 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         console.warn("Failed to detect file type:", err);
       }
     };
-
     detectType();
   }, [item.mimeType, item.originalName]);
-
-  // Load text file content
   useEffect(() => {
     if (category === "TEXT" && uri) {
       setLoadingProgress(0);
-
       fetch(uri)
         .then((response) => {
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -73,10 +53,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         });
     }
   }, [category, uri]);
-
   if (!uri) return null;
-
-  // Type checkers using detected category
   const isImage = category === "IMAGE";
   const isVideo = category === "VIDEO";
   const isAudio = category === "AUDIO";
@@ -85,10 +62,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
   const isArchive = category === "ARCHIVE";
   const isApk = category === "APK";
   const isUnsupported = category === "UNKNOWN";
-
   return (
     <div className="fixed inset-0 bg-black z-[60] flex flex-col animate-in zoom-in-95 duration-200">
-      {/* Header with enhanced UI */}
       <div className="pt-safe bg-vault-950/90 backdrop-blur-md border-b border-vault-800 z-10 flex flex-col shadow-lg">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3 overflow-hidden flex-1">
@@ -110,7 +85,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2 ml-4">
-            {/* Open with native app button (if supported) */}
             {!FileTypeDetector.canPreviewInApp(category) && onOpenNative && (
               <button
                 onClick={onOpenNative}
@@ -128,7 +102,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </button>
           </div>
         </div>
-
         {/* Loading progress bar */}
         {loadingProgress > 0 && loadingProgress < 100 && (
           <div className="h-1 bg-vault-900">
@@ -139,7 +112,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
           </div>
         )}
       </div>
-
       {/* Content Body */}
       <div className="flex-1 overflow-auto flex items-center justify-center bg-black p-4 relative pb-safe">
         {/* Error State */}
@@ -158,7 +130,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </button>
           </div>
         )}
-
         {/* Image Preview */}
         {isImage && !error && (
           <img
@@ -168,7 +139,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             onError={() => setError("Failed to load image")}
           />
         )}
-
         {/* Video Preview */}
         {isVideo && !error && (
           <div className="w-full max-w-4xl">
@@ -181,7 +151,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             />
           </div>
         )}
-
         {/* Audio Player */}
         {isAudio && !error && (
           <div className="w-full max-w-md bg-vault-900 p-8 rounded-2xl border border-vault-800 shadow-2xl">
@@ -201,7 +170,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             />
           </div>
         )}
-
         {/* Text Preview */}
         {isText && !error && (
           <div className="w-full max-w-4xl mx-auto h-full bg-white text-black p-6 rounded-lg overflow-auto font-mono text-xs md:text-sm whitespace-pre-wrap shadow-xl">
@@ -212,7 +180,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             )}
           </div>
         )}
-
         {/* PDF Preview */}
         {isPdf && !error && (
           <iframe
@@ -222,7 +189,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             onError={() => setError("Failed to load PDF")}
           />
         )}
-
         {/* APK Info */}
         {isApk && !error && (
           <div className="w-full max-w-sm bg-vault-900 p-8 rounded-3xl border border-vault-800 text-center space-y-6 shadow-2xl">
@@ -259,7 +225,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </p>
           </div>
         )}
-
         {/* Archive Preview */}
         {isArchive && !error && (
           <div className="w-full max-w-md bg-vault-900 rounded-2xl border border-vault-800 flex flex-col max-h-[80vh] shadow-2xl">
@@ -284,7 +249,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </div>
           </div>
         )}
-
         {/* Unsupported File Type */}
         {isUnsupported && !error && (
           <div className="text-center p-8 bg-vault-900 rounded-xl border border-vault-800 shadow-xl max-w-sm">

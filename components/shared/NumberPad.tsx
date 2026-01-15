@@ -1,13 +1,11 @@
 import React from 'react';
 import { Icons } from '../icons/Icons';
-
 export const NumberPad: React.FC<{ 
   onPress: (digit: string) => void;
   onBackspace: () => void;
   disabled?: boolean;
 }> = ({ onPress, onBackspace, disabled }) => {
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-
   return (
     <div className="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
       {digits.map(d => (

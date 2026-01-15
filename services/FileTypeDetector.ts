@@ -1,20 +1,8 @@
 import type { FileTypeDetectionResult, FileTypeCategory } from "../types";
-
-/**
- * FileTypeDetector: Robust file type detection using multiple methods
- * - Extension-based detection (fast, reliable)
- * - Magic bytes/file signature detection (accurate even without extension)
- * - MIME type sniffing (fallback)
- *
- * Returns a confidence score and suggested handling method.
- */
-
-// Magic byte signatures (file headers) for accurate detection
 const MAGIC_BYTES_MAP: Record<
   string,
   { bytes: number[]; category: FileTypeCategory; mimeType: string }
 > = {
-  // Images
   FFD8FF: {
     bytes: [0xff, 0xd8, 0xff],
     category: "IMAGE",
@@ -34,21 +22,17 @@ const MAGIC_BYTES_MAP: Record<
     bytes: [0x52, 0x49, 0x46, 0x46],
     category: "IMAGE",
     mimeType: "image/webp",
-  }, // RIFF (WebP/WAV)
+  },
   "00000020": {
     bytes: [0x00, 0x00, 0x00, 0x20],
     category: "IMAGE",
     mimeType: "image/x-icon",
-  }, // ICO
-
-  // PDF
+  },
   "25504446": {
     bytes: [0x25, 0x50, 0x44, 0x46],
     category: "PDF",
     mimeType: "application/pdf",
   },
-
-  // Archives
   "504B0304": {
     bytes: [0x50, 0x4b, 0x03, 0x04],
     category: "ARCHIVE",
@@ -84,13 +68,11 @@ const MAGIC_BYTES_MAP: Record<
     category: "ARCHIVE",
     mimeType: "application/gzip",
   },
-
-  // Video/Audio
   "000000": {
     bytes: [0x00, 0x00, 0x00, 0x00],
     category: "VIDEO",
     mimeType: "video/mp4",
-  }, // MP4 (ftyp)
+  },
   FTYPISOMISO2AVC1: {
     bytes: [0x66, 0x74, 0x79, 0x70],
     category: "VIDEO",
@@ -100,27 +82,27 @@ const MAGIC_BYTES_MAP: Record<
     bytes: [0x1a, 0x45, 0xdf, 0xa3],
     category: "VIDEO",
     mimeType: "video/x-matroska",
-  }, // MKV
+  },
   "664F7261": {
     bytes: [0x66, 0x6f, 0x72, 0x61],
     category: "VIDEO",
     mimeType: "video/quicktime",
-  }, // MOV
+  },
   "4642414C": {
     bytes: [0x46, 0x4c, 0x61, 0x43],
     category: "AUDIO",
     mimeType: "audio/flac",
-  }, // FLAC
+  },
   "49443": {
     bytes: [0x49, 0x44, 0x33],
     category: "AUDIO",
     mimeType: "audio/mpeg",
-  }, // MP3
+  },
   "2123414F55": {
     bytes: [0x23, 0x21, 0x41, 0x4f, 0x55],
     category: "AUDIO",
     mimeType: "audio/x-oggflac",
-  }, // Ogg
+  },
   "4F676753": {
     bytes: [0x4f, 0x67, 0x67, 0x53],
     category: "AUDIO",
@@ -130,23 +112,19 @@ const MAGIC_BYTES_MAP: Record<
     bytes: [0x52, 0x49, 0x46, 0x46],
     category: "AUDIO",
     mimeType: "audio/wav",
-  }, // RIFF/WAV
-
-  // Office Documents
+  },
   D0CF11E0: {
     bytes: [0xd0, 0xcf, 0x11, 0xe0],
     category: "DOCUMENT",
     mimeType: "application/msword",
-  }, // OLE (DOC/XLS/PPT)
+  },
   "504B0304504B": {
     bytes: [0x50, 0x4b, 0x03, 0x04, 0x50, 0x4b],
     category: "DOCUMENT",
     mimeType:
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  }, // DOCX
+  },
 };
-
-// Extension-to-MIME mapping with file categories
 const EXTENSION_MAP: Record<
   string,
   {
@@ -155,7 +133,6 @@ const EXTENSION_MAP: Record<
     suggestedMethod: "IN_APP" | "NATIVE" | "UNSUPPORTED";
   }
 > = {
-  // Images (in-app preview preferred)
   jpg: { category: "IMAGE", mimeType: "image/jpeg", suggestedMethod: "IN_APP" },
   jpeg: {
     category: "IMAGE",
@@ -186,8 +163,6 @@ const EXTENSION_MAP: Record<
     suggestedMethod: "IN_APP",
   },
   tif: { category: "IMAGE", mimeType: "image/tiff", suggestedMethod: "IN_APP" },
-
-  // Video (in-app preview preferred for common formats)
   mp4: { category: "VIDEO", mimeType: "video/mp4", suggestedMethod: "IN_APP" },
   webm: {
     category: "VIDEO",
@@ -220,8 +195,6 @@ const EXTENSION_MAP: Record<
     mimeType: "video/x-ms-wmv",
     suggestedMethod: "NATIVE",
   },
-
-  // Audio (in-app preferred for common, native for others)
   mp3: { category: "AUDIO", mimeType: "audio/mpeg", suggestedMethod: "IN_APP" },
   wav: { category: "AUDIO", mimeType: "audio/wav", suggestedMethod: "IN_APP" },
   m4a: { category: "AUDIO", mimeType: "audio/mp4", suggestedMethod: "IN_APP" },
@@ -246,15 +219,11 @@ const EXTENSION_MAP: Record<
     mimeType: "audio/opus",
     suggestedMethod: "IN_APP",
   },
-
-  // PDF (in-app preview)
   pdf: {
     category: "PDF",
     mimeType: "application/pdf",
     suggestedMethod: "IN_APP",
   },
-
-  // Text (in-app preview)
   txt: { category: "TEXT", mimeType: "text/plain", suggestedMethod: "IN_APP" },
   text: { category: "TEXT", mimeType: "text/plain", suggestedMethod: "IN_APP" },
   csv: { category: "TEXT", mimeType: "text/csv", suggestedMethod: "IN_APP" },
@@ -317,8 +286,6 @@ const EXTENSION_MAP: Record<
     suggestedMethod: "IN_APP",
   },
   log: { category: "TEXT", mimeType: "text/plain", suggestedMethod: "IN_APP" },
-
-  // Documents
   doc: {
     category: "DOCUMENT",
     mimeType: "application/msword",
@@ -345,8 +312,6 @@ const EXTENSION_MAP: Record<
     mimeType: "application/vnd.apple.pages",
     suggestedMethod: "NATIVE",
   },
-
-  // Spreadsheets
   xls: {
     category: "SPREADSHEET",
     mimeType: "application/vnd.ms-excel",
@@ -368,8 +333,6 @@ const EXTENSION_MAP: Record<
     mimeType: "application/vnd.apple.numbers",
     suggestedMethod: "NATIVE",
   },
-
-  // Archives
   zip: {
     category: "ARCHIVE",
     mimeType: "application/zip",
@@ -405,15 +368,11 @@ const EXTENSION_MAP: Record<
     mimeType: "application/x-xz",
     suggestedMethod: "NATIVE",
   },
-
-  // APK
   apk: {
     category: "APK",
     mimeType: "application/vnd.android.package-archive",
     suggestedMethod: "NATIVE",
   },
-
-  // Unknown
   bin: {
     category: "UNKNOWN",
     mimeType: "application/octet-stream",
@@ -430,22 +389,13 @@ const EXTENSION_MAP: Record<
     suggestedMethod: "UNSUPPORTED",
   },
 };
-
 export class FileTypeDetector {
-  /**
-   * Detect file type from a Blob with multiple fallbacks
-   * @param blob File blob to analyze
-   * @param fileName Original file name with extension
-   * @returns Detection result with confidence and suggested handling
-   */
   static async detectType(
     blob: Blob,
     fileName: string
   ): Promise<FileTypeDetectionResult> {
     const extension = this.getExtension(fileName).toLowerCase();
-
     try {
-      // Try magic bytes first (highest accuracy)
       const magicResult = await this.detectByMagicBytes(blob);
       if (magicResult) {
         return {
@@ -456,10 +406,7 @@ export class FileTypeDetector {
         };
       }
     } catch (error) {
-      // Fall through to extension-based detection
     }
-
-    // Try extension-based detection
     const extensionResult = this.detectByExtension(extension);
     if (extensionResult) {
       return {
@@ -469,8 +416,6 @@ export class FileTypeDetector {
         extension,
       };
     }
-
-    // Try MIME type from blob
     if (blob.type) {
       return {
         mimeType: blob.type,
@@ -481,8 +426,6 @@ export class FileTypeDetector {
         suggestedMethod: "UNSUPPORTED",
       };
     }
-
-    // Default: unknown
     return {
       mimeType: "application/octet-stream",
       category: "UNKNOWN",
@@ -492,26 +435,18 @@ export class FileTypeDetector {
       suggestedMethod: "UNSUPPORTED",
     };
   }
-
-  /**
-   * Detect file type from magic bytes (file signature)
-   */
   private static async detectByMagicBytes(
     blob: Blob
   ): Promise<Omit<
     FileTypeDetectionResult,
     "extension" | "confidence" | "detectedBy"
   > | null> {
-    const headerSize = Math.min(512, blob.size); // Read first 512 bytes
+    const headerSize = Math.min(512, blob.size);
     const header = await blob.slice(0, headerSize).arrayBuffer();
     const bytes = new Uint8Array(header);
-
-    // Convert first bytes to hex for comparison
     const hexSignature = Array.from(bytes.slice(0, 8))
       .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
       .join("");
-
-    // Check against known signatures
     for (const [sig, config] of Object.entries(MAGIC_BYTES_MAP)) {
       if (hexSignature.startsWith(sig)) {
         return {
@@ -521,8 +456,6 @@ export class FileTypeDetector {
         };
       }
     }
-
-    // Special check for MP4 variants (ftyp box)
     if (hexSignature.includes("66747970") && bytes.length > 8) {
       const ftypBrand = String.fromCharCode(...bytes.slice(8, 12));
       if (ftypBrand.includes("isom") || ftypBrand.includes("mp4")) {
@@ -533,13 +466,8 @@ export class FileTypeDetector {
         };
       }
     }
-
     return null;
   }
-
-  /**
-   * Detect file type from extension
-   */
   private static detectByExtension(
     ext: string
   ): Omit<
@@ -556,10 +484,6 @@ export class FileTypeDetector {
     }
     return null;
   }
-
-  /**
-   * Categorize a MIME type into a file category
-   */
   private static categorizeMimeType(mimeType: string): FileTypeCategory {
     if (mimeType.startsWith("image/")) return "IMAGE";
     if (mimeType.startsWith("video/")) return "VIDEO";
@@ -581,18 +505,10 @@ export class FileTypeDetector {
     if (mimeType.includes("apk") || mimeType.includes("android")) return "APK";
     return "UNKNOWN";
   }
-
-  /**
-   * Get file extension from filename
-   */
   private static getExtension(fileName: string): string {
     const lastDot = fileName.lastIndexOf(".");
     return lastDot === -1 ? "" : fileName.substring(lastDot + 1);
   }
-
-  /**
-   * Suggest optimal opener method based on file category and platform
-   */
   private static suggestOpenerMethod(
     category: FileTypeCategory
   ): "IN_APP" | "NATIVE" | "UNSUPPORTED" {
@@ -605,24 +521,12 @@ export class FileTypeDetector {
     ];
     return inAppCategories.includes(category) ? "IN_APP" : "NATIVE";
   }
-
-  /**
-   * Check if a file type can be previewed in-app
-   */
   static canPreviewInApp(category: FileTypeCategory): boolean {
     return ["IMAGE", "VIDEO", "AUDIO", "PDF", "TEXT"].includes(category);
   }
-
-  /**
-   * Check if a file type requires native opener
-   */
   static requiresNativeOpener(category: FileTypeCategory): boolean {
     return ["DOCUMENT", "SPREADSHEET", "ARCHIVE", "APK"].includes(category);
   }
-
-  /**
-   * Format file size for display
-   */
   static formatFileSize(bytes: number): string {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -630,10 +534,6 @@ export class FileTypeDetector {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   }
-
-  /**
-   * Get MIME type for a file category
-   */
   static getMimeTypeForCategory(
     category: FileTypeCategory,
     fallback?: string

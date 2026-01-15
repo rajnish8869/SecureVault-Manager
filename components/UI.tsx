@@ -12,5 +12,3 @@ export * from './modals/DialogModal';
 export * from './modals/ProcessingModal';
 export * from './vault/VaultList';
 export * from './vault/FileViewer';
-// Export hook here if needed, but App.tsx imports hooks from /hooks.
-// Keeping this file focused on UI components re-exports.

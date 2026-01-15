@@ -1,86 +1,83 @@
-import { useState, useCallback, useMemo } from 'react';
-import { SecureVault } from '../plugins/SecureVaultPlugin';
-import type { VaultItem } from '../types';
-
+import { useState, useCallback, useMemo } from "react";
+import { SecureVault } from "../plugins/SecureVaultPlugin";
+import type { VaultItem } from "../types";
 export const useVault = (password: string | null) => {
   const [allItems, setAllItems] = useState<VaultItem[]>([]);
-  const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(undefined);
-  
+  const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(
+    undefined
+  );
   const items = useMemo(() => {
-    return allItems.filter(i => i.parentId === currentFolderId);
+    return allItems.filter((i) => i.parentId === currentFolderId);
   }, [allItems, currentFolderId]);
-
   const breadcrumbs = useMemo(() => {
-      const path: { id?: string, name: string }[] = [{ id: undefined, name: 'Home' }];
-      let curr = currentFolderId;
-      const stack = [];
-      while(curr) {
-          const folder = allItems.find(i => i.id === curr);
-          if(folder) {
-              stack.unshift({ id: folder.id, name: folder.originalName });
-              curr = folder.parentId;
-          } else {
-              break;
-          }
+    const path: { id?: string; name: string }[] = [
+      { id: undefined, name: "Home" },
+    ];
+    let curr = currentFolderId;
+    const stack = [];
+    while (curr) {
+      const folder = allItems.find((i) => i.id === curr);
+      if (folder) {
+        stack.unshift({ id: folder.id, name: folder.originalName });
+        curr = folder.parentId;
+      } else {
+        break;
       }
-      return [...path, ...stack];
+    }
+    return [...path, ...stack];
   }, [allItems, currentFolderId]);
-
   const loadFiles = useCallback(async () => {
     if (!password) return;
     try {
       const files = await SecureVault.getVaultFiles();
       setAllItems(files);
-    } catch (e) {
-      console.error("Failed to load vault files", e);
-    }
+    } catch (e) {}
   }, [password]);
-
   const createFolder = async (name: string) => {
-      const newFolder = await SecureVault.createFolder({ name, parentId: currentFolderId });
-      setAllItems(prev => [newFolder, ...prev]);
+    const newFolder = await SecureVault.createFolder({
+      name,
+      parentId: currentFolderId,
+    });
+    setAllItems((prev) => [newFolder, ...prev]);
   };
-
   const importFile = async (file: File) => {
     if (!password) throw new Error("No session");
     const newItem = await SecureVault.importFile({
-        fileBlob: file,
-        fileName: file.name,
-        password,
-        parentId: currentFolderId
+      fileBlob: file,
+      fileName: file.name,
+      password,
+      parentId: currentFolderId,
     });
-    setAllItems(prev => [newItem, ...prev]);
+    setAllItems((prev) => [newItem, ...prev]);
     return newItem;
   };
-
   const deleteItems = async (ids: string[]) => {
     await SecureVault.deleteVaultItems({ ids });
-    setAllItems(prev => prev.filter(i => !ids.includes(i.id))); // Optimistic update, but parent recursive logic handles actual cleanup on reload
-    loadFiles(); // Reload to ensure cache consistency with recursive deletes
+    setAllItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    loadFiles();
   };
-
   const exportFile = async (id: string) => {
     if (!password) throw new Error("No session");
     return await SecureVault.exportFile({ id, password });
   };
-
   const previewFile = async (id: string) => {
     if (!password) throw new Error("No session");
     await SecureVault.enablePrivacyScreen({ enabled: true });
     return await SecureVault.previewFile({ id, password });
   };
-
   const moveItems = async (ids: string[], targetId?: string) => {
-      await SecureVault.moveItems({ itemIds: ids, targetParentId: targetId });
-      loadFiles();
+    await SecureVault.moveItems({ itemIds: ids, targetParentId: targetId });
+    loadFiles();
   };
-
   const copyItems = async (ids: string[], targetId?: string) => {
-      if(!password) return;
-      await SecureVault.copyItems({ itemIds: ids, targetParentId: targetId, password });
-      loadFiles();
+    if (!password) return;
+    await SecureVault.copyItems({
+      itemIds: ids,
+      targetParentId: targetId,
+      password,
+    });
+    loadFiles();
   };
-
   return {
     items,
     breadcrumbs,
@@ -93,6 +90,6 @@ export const useVault = (password: string | null) => {
     exportFile,
     previewFile,
     moveItems,
-    copyItems
+    copyItems,
   };
 };

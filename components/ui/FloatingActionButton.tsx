@@ -1,6 +1,5 @@
 import React from 'react';
 import { Icons } from '../icons/Icons';
-
 export const FloatingActionButton: React.FC<{ onClick: () => void; isOpen?: boolean }> = ({ onClick, isOpen }) => (
   <button 
     onClick={onClick}

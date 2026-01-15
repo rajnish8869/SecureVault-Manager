@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, PasswordInput, PinDisplay, NumberPad, Icons } from '../components/UI';
 import type { LockType } from '../types';
-
 interface LockScreenProps {
   lockType: LockType;
   onUnlock: (password: string) => void;
@@ -12,16 +11,13 @@ interface LockScreenProps {
   bioAvailable: boolean;
   clearError: () => void;
 }
-
 export const LockScreen: React.FC<LockScreenProps> = ({ 
     lockType, onUnlock, onBiometricAuth, error, isProcessing, bioEnabled, bioAvailable, clearError
 }) => {
   const [input, setInput] = useState('');
-
   useEffect(() => {
       if(error && lockType === 'PIN') setInput('');
   }, [error, lockType]);
-
   const handlePinDigit = (d: string) => {
       if(isProcessing) return;
       clearError();
@@ -33,12 +29,10 @@ export const LockScreen: React.FC<LockScreenProps> = ({
           }
       }
   };
-
   const handleBackspace = () => {
       setInput(prev => prev.slice(0, -1));
       clearError();
   };
-
   return (
     <div className="h-dvh flex items-center justify-center p-6 bg-vault-950">
       <div className="w-full max-w-sm space-y-10 animate-in zoom-in-95 duration-500">
@@ -53,7 +47,6 @@ export const LockScreen: React.FC<LockScreenProps> = ({
                </p>
            </div>
         </div>
-
         {lockType === 'PASSWORD' ? (
              <div className="space-y-4">
                 <PasswordInput 
@@ -86,7 +79,6 @@ export const LockScreen: React.FC<LockScreenProps> = ({
                  )}
             </div>
         )}
-
         {error && (
            <div className="text-red-400 text-sm font-medium text-center bg-red-500/10 border border-red-500/20 p-3 rounded-xl animate-shake">
              {error}

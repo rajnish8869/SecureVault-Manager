@@ -1,5 +1,4 @@
 import React from 'react';
-
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'ghost' | 'outline' }> = ({ 
   children, variant = 'primary', className = '', ...props 
 }) => {
@@ -10,7 +9,6 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
     ghost: "bg-transparent hover:bg-vault-700 text-vault-400 hover:text-white",
     outline: "bg-transparent border border-vault-700 hover:bg-vault-700 text-vault-400 hover:text-white"
   };
-  
   return (
     <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
       {children}

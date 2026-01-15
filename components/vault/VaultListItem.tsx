@@ -3,7 +3,6 @@ import type { VaultItem } from '../../types';
 import { Icons, getFileIcon } from '../icons/Icons';
 import { useLongPress } from '../../hooks/useLongPress';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-
 interface VaultListItemProps {
   item: VaultItem;
   selectionMode: boolean;
@@ -13,11 +12,9 @@ interface VaultListItemProps {
   onView: (item: VaultItem) => void;
   onMenu: (item: VaultItem) => void;
 }
-
 export const VaultListItem: React.FC<VaultListItemProps> = ({ 
   item, selectionMode, isSelected, onSelect, onNavigate, onView, onMenu 
 }) => {
-  
   const handlePress = () => {
       if (selectionMode) {
           onSelect(item.id);
@@ -26,16 +23,13 @@ export const VaultListItem: React.FC<VaultListItemProps> = ({
           else onView(item);
       }
   };
-
   const handleLongPress = async () => {
       if (!selectionMode) {
           try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch(e){}
           onSelect(item.id);
       }
   };
-
   const longPressProps = useLongPress(handleLongPress, handlePress, { delay: 400 });
-
   return (
     <div 
       {...longPressProps}
@@ -49,11 +43,9 @@ export const VaultListItem: React.FC<VaultListItemProps> = ({
                 {isSelected && <span className="text-white text-xs"><Icons.Check /></span>}
             </div>
         )}
-        
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors shadow-sm ${item.type === 'FOLDER' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-vault-800 text-vault-400 border border-vault-700/50'}`}>
           {getFileIcon(item.mimeType, item.originalName)}
         </div>
-        
         <div className="min-w-0 flex-1 py-1">
           <h4 className={`font-semibold text-sm truncate leading-tight ${isSelected ? 'text-vault-accent' : 'text-slate-200'}`}>{item.originalName}</h4>
           <div className="flex items-center gap-2 mt-1">
@@ -66,7 +58,6 @@ export const VaultListItem: React.FC<VaultListItemProps> = ({
           </div>
         </div>
       </div>
-
       {!selectionMode && (
           <button 
             className="p-3 -mr-2 text-vault-500 hover:text-white transition-colors z-10 rounded-full hover:bg-vault-700 active:bg-vault-600"

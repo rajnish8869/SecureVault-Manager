@@ -1,5 +1,4 @@
 import React from 'react';
-
 export const PinDisplay: React.FC<{ value: string; length?: number }> = ({ value, length = 6 }) => {
   return (
     <div className="flex justify-center gap-4 mb-8">

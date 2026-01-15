@@ -1,6 +1,5 @@
 import React from 'react';
 import { BaseModal } from './BaseModal';
-
 export const ProcessingModal: React.FC<{
   isOpen: boolean;
   progress: number;

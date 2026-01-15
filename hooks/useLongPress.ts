@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react';
-
 export const useLongPress = (
   onLongPress: (e: any) => void,
   onClick: (e: any) => void,
@@ -8,7 +7,6 @@ export const useLongPress = (
   const [longPressTriggered, setLongPressTriggered] = useState(false);
   const timeout = useRef<any>(undefined);
   const target = useRef<EventTarget | undefined>(undefined);
-
   const start = useCallback(
     (event: any) => {
       if (shouldPreventDefault && event.target) {
@@ -22,7 +20,6 @@ export const useLongPress = (
     },
     [onLongPress, delay, shouldPreventDefault]
   );
-
   const clear = useCallback(
     (event: any, shouldTriggerClick = true) => {
       timeout.current && clearTimeout(timeout.current);
@@ -34,7 +31,6 @@ export const useLongPress = (
     },
     [shouldPreventDefault, onClick, longPressTriggered]
   );
-
   return {
     onMouseDown: (e: any) => start(e),
     onTouchStart: (e: any) => start(e),

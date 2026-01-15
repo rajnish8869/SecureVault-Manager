@@ -1,5 +1,4 @@
 import React from 'react';
-
 export const Toggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({ checked, onChange }) => (
   <button 
     onClick={() => onChange(!checked)}

@@ -4,7 +4,6 @@ export class CryptoService {
     window.crypto.getRandomValues(array);
     return this.bufferToBase64(array);
   }
-
   static async deriveKey(password: string, saltBase64: string): Promise<CryptoKey> {
     const enc = new TextEncoder();
     const keyMaterial = await window.crypto.subtle.importKey(
@@ -14,7 +13,6 @@ export class CryptoService {
       false,
       ["deriveBits", "deriveKey"]
     );
-    
     const salt = this.base64ToBuffer(saltBase64);
     return window.crypto.subtle.deriveKey(
       {
@@ -25,44 +23,37 @@ export class CryptoService {
       },
       keyMaterial,
       { name: "AES-GCM", length: 256 },
-      false, // Key not extractable
+      false,
       ["encrypt", "decrypt"]
     );
   }
-
   static async hashForVerification(password: string, saltBase64: string): Promise<string> {
     const msgBuffer = new TextEncoder().encode(password + saltBase64);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
     return this.bufferToBase64(new Uint8Array(hashBuffer));
   }
-
   static async encryptBlob(data: Blob, key: CryptoKey): Promise<{ iv: string, content: string }> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     const arrayBuffer = await data.arrayBuffer();
-    
     const encrypted = await window.crypto.subtle.encrypt(
       { name: "AES-GCM", iv: iv },
       key,
       arrayBuffer
     );
-
     return {
       iv: this.bufferToBase64(iv),
       content: this.bufferToBase64(new Uint8Array(encrypted))
     };
   }
-
   static async decryptBlob(encryptedBase64: string, ivBase64: string, key: CryptoKey): Promise<ArrayBuffer> {
     const iv = this.base64ToBuffer(ivBase64);
     const data = this.base64ToBuffer(encryptedBase64);
-    
     return await window.crypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv },
       key,
       data
     );
   }
-
   static bufferToBase64(buffer: Uint8Array): string {
     let binary = '';
     const len = buffer.byteLength;
@@ -71,7 +62,6 @@ export class CryptoService {
     }
     return window.btoa(binary);
   }
-
   static base64ToBuffer(base64: string): Uint8Array {
     const binary_string = window.atob(base64);
     const len = binary_string.length;

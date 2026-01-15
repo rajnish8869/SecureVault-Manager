@@ -4,88 +4,44 @@ import { FilePreviewService } from "./FilePreviewService";
 import { NativeFileOpener } from "./NativeFileOpener";
 import { CryptoService } from "./CryptoService";
 import { StorageService } from "./StorageService";
-
-/**
- * FileOpenService: Main orchestrator for secure, platform-aware file opening
- *
- * Features:
- * - Robust file type detection (extension + magic bytes)
- * - Platform-aware handling (web vs native/Capacitor)
- * - In-app previews for images, video, PDF, text
- * - Native fallback for complex formats
- * - Secure decryption for vault files
- * - Streaming with progress tracking
- * - Memory-efficient handling of large files
- * - Comprehensive error handling with user-friendly messages
- * - Secure cleanup of temporary files
- *
- * Usage:
- *   const result = await FileOpenService.openFile(vaultItem, password, blob);
- *   if (result.success) {
- *     // Use result.uri for preview or handle native open
- *   } else {
- *     // Show error: result.error
- *   }
- */
-
 interface DecryptedFileInfo {
   blob: Blob;
   fileName: string;
   mimeType: string;
 }
-
 export class FileOpenService {
   private static config: FileOpenConfig = {
-    maxInMemorySize: 100, // MB
+    maxInMemorySize: 100,
     generateThumbnails: true,
     cacheThumbnails: true,
-    maxCacheSize: 50, // MB
+    maxCacheSize: 50,
     secureWipeTempFiles: true,
-    operationTimeout: 30000, // 30 seconds
+    operationTimeout: 30000,
   };
-
   private static activeOperations = new Map<string, AbortController>();
   private static progressCallbacks = new Map<
     string,
     (progress: StreamProgress) => void
   >();
-
-  /**
-   * Initialize FileOpenService with custom config
-   */
   static async initialize(
     customConfig?: Partial<FileOpenConfig>
   ): Promise<void> {
     if (customConfig) {
       this.config = { ...this.config, ...customConfig };
     }
-
-    // Initialize native file opener on native platforms
     if (NativeFileOpener.isNativeAvailable()) {
       await NativeFileOpener.initialize();
     }
-
-    console.debug("[FileOpenService] Initialized with config:", this.config);
   }
-
-  /**
-   * Main entry point: Open a file from vault or filesystem
-   * Handles both encrypted vault files and regular files
-   */
   static async openFile(
     blob: Blob,
     fileName: string,
     options?: {
-      // Vault-specific
       isVaultFile?: boolean;
       vaultFileId?: string;
       vaultPassword?: string;
       decryptionKey?: CryptoKey;
-
-      // Progress tracking
       onProgress?: (progress: StreamProgress) => void;
-
-      // Behavior
       preferNative?: boolean;
       forceNative?: boolean;
     }
@@ -93,17 +49,13 @@ export class FileOpenService {
     const operationId = `${options?.vaultFileId || fileName}_${Date.now()}`;
     const abortController = new AbortController();
     this.activeOperations.set(operationId, abortController);
-
     if (options?.onProgress) {
       this.progressCallbacks.set(operationId, options.onProgress);
     }
-
     try {
-      // Set operation timeout
       const timeoutId = setTimeout(() => {
         abortController.abort();
       }, this.config.operationTimeout);
-
       try {
         const result = await this._openFileInternal(blob, fileName, {
           ...options,
@@ -123,10 +75,6 @@ export class FileOpenService {
       this.progressCallbacks.delete(operationId);
     }
   }
-
-  /**
-   * Internal implementation of file opening
-   */
   private static async _openFileInternal(
     blob: Blob,
     fileName: string,
@@ -142,19 +90,9 @@ export class FileOpenService {
       abortController: AbortController;
     }
   ): Promise<FileOpenResult> {
-    // Step 1: Detect file type
     const detection = await FileTypeDetector.detectType(blob, fileName);
-
-    console.debug(
-      `[FileOpenService] Opening file: ${fileName}`,
-      `Category: ${detection.category}`,
-      `Method: ${detection.suggestedMethod}`
-    );
-
-    // Step 2: Handle vault encryption if needed
     let fileToOpen = blob;
     let tempPath: string | undefined;
-
     if (options.isVaultFile && options.decryptionKey) {
       try {
         this._reportProgress(options.operationId, {
@@ -162,13 +100,11 @@ export class FileOpenService {
           loaded: 0,
           percent: 0,
         });
-
         fileToOpen = await StorageService.loadFile(
           options.vaultFileId || "",
           options.decryptionKey
         );
-        tempPath = `vault://${options.vaultFileId}`;
-
+        tempPath = `vault:
         this._reportProgress(options.operationId, {
           total: blob.size,
           loaded: blob.size,
@@ -184,8 +120,6 @@ export class FileOpenService {
         };
       }
     }
-
-    // Step 3: Determine opener method
     const method = this._determineOpenerMethod(
       detection.category,
       fileToOpen.size,
@@ -194,8 +128,6 @@ export class FileOpenService {
         forceNative: options.forceNative,
       }
     );
-
-    // Step 4: Open based on method
     switch (method) {
       case "IN_APP":
         return this._openInApp(
@@ -204,7 +136,6 @@ export class FileOpenService {
           detection.mimeType,
           detection.category
         );
-
       case "NATIVE":
         return this._openNative(
           fileToOpen,
@@ -213,7 +144,6 @@ export class FileOpenService {
           detection.category,
           tempPath
         );
-
       case "DOWNLOAD":
         return this._prepareDownload(
           fileToOpen,
@@ -221,7 +151,6 @@ export class FileOpenService {
           detection.mimeType,
           detection.category
         );
-
       case "UNSUPPORTED":
       default:
         return {
@@ -233,10 +162,6 @@ export class FileOpenService {
         };
     }
   }
-
-  /**
-   * Open file in app (images, video, PDF, text)
-   */
   private static async _openInApp(
     blob: Blob,
     fileName: string,
@@ -244,23 +169,17 @@ export class FileOpenService {
     category: string
   ): Promise<FileOpenResult> {
     try {
-      // For large files, stream instead of loading entirely
       let uri: string;
-
       if (blob.size > (this.config.maxInMemorySize || 100) * 1024 * 1024) {
-        // Stream large file
         uri = URL.createObjectURL(blob);
       } else {
-        // Small file - create data URL
         try {
           const base64 = await this._blobToBase64(blob);
           uri = `data:${mimeType};base64,${base64}`;
         } catch (base64Error) {
-          // Fallback to blob URL if base64 fails
           uri = URL.createObjectURL(blob);
         }
       }
-
       return {
         success: true,
         method: "IN_APP",
@@ -278,10 +197,6 @@ export class FileOpenService {
       };
     }
   }
-
-  /**
-   * Open file with native app
-   */
   private static async _openNative(
     blob: Blob,
     fileName: string,
@@ -298,7 +213,6 @@ export class FileOpenService {
         error: "Native file opener not available on this platform",
       };
     }
-
     try {
       const result = await NativeFileOpener.handleFileOpen(
         blob,
@@ -306,21 +220,14 @@ export class FileOpenService {
         mimeType
       );
       result.category = category as any;
-
       if (result.tempPath && this.config.secureWipeTempFiles) {
-        // Schedule cleanup after a delay
         setTimeout(async () => {
           try {
             await NativeFileOpener.securelyWipeFile(result.tempPath!);
           } catch (error) {
-            console.warn(
-              "[FileOpenService] Failed to cleanup temp file:",
-              error
-            );
           }
-        }, 10000); // 10 second delay to allow app to read file
+        }, 10000);
       }
-
       return result;
     } catch (error: any) {
       return {
@@ -332,10 +239,6 @@ export class FileOpenService {
       };
     }
   }
-
-  /**
-   * Prepare file for download
-   */
   private static async _prepareDownload(
     blob: Blob,
     fileName: string,
@@ -344,18 +247,13 @@ export class FileOpenService {
   ): Promise<FileOpenResult> {
     try {
       const url = URL.createObjectURL(blob);
-
-      // Trigger download
       const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Cleanup after a moment
       setTimeout(() => URL.revokeObjectURL(url), 100);
-
       return {
         success: true,
         method: "DOWNLOAD",
@@ -372,45 +270,43 @@ export class FileOpenService {
       };
     }
   }
-
-  /**
-   * Determine optimal opener method based on file type and platform
-   */
   private static _determineOpenerMethod(
     category: string,
     fileSize: number,
     options: { preferNative?: boolean; forceNative?: boolean } = {}
   ): "IN_APP" | "NATIVE" | "DOWNLOAD" | "UNSUPPORTED" {
+    if (
+      category === "PDF" &&
+      NativeFileOpener.isNativeAvailable() &&
+      NativeFileOpener.isAndroid()
+    ) {
+      return "NATIVE";
+    }
     if (options.forceNative && NativeFileOpener.isNativeAvailable()) {
       return "NATIVE";
     }
-
-    // In-app preview for these types
     if (
-      ["IMAGE", "VIDEO", "AUDIO", "PDF", "TEXT"].includes(category) &&
+      ["IMAGE", "VIDEO", "AUDIO", "TEXT"].includes(category) &&
       !options.preferNative
     ) {
       return "IN_APP";
     }
-
-    // Native for complex formats
+    if (category === "PDF") {
+      if (NativeFileOpener.isNativeAvailable()) {
+        return "NATIVE";
+      }
+      return "IN_APP";
+    }
     if (["DOCUMENT", "SPREADSHEET", "ARCHIVE", "APK"].includes(category)) {
       if (NativeFileOpener.isNativeAvailable()) {
         return "NATIVE";
       }
-      // Fallback to download on web
       if (NativeFileOpener.isWeb()) {
         return "DOWNLOAD";
       }
     }
-
-    // Unknown or unsupported
     return "UNSUPPORTED";
   }
-
-  /**
-   * Cancel ongoing file operation
-   */
   static cancelOperation(operationId: string): void {
     const controller = this.activeOperations.get(operationId);
     if (controller) {
@@ -418,10 +314,6 @@ export class FileOpenService {
       this.activeOperations.delete(operationId);
     }
   }
-
-  /**
-   * Report progress to caller
-   */
   private static _reportProgress(
     operationId: string,
     progress: StreamProgress
@@ -431,10 +323,6 @@ export class FileOpenService {
       callback(progress);
     }
   }
-
-  /**
-   * Convert blob to base64
-   */
   private static _blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -446,15 +334,8 @@ export class FileOpenService {
       reader.readAsDataURL(blob);
     });
   }
-
-  /**
-   * Handle and format errors
-   */
   private static _handleError(error: any, fileName: string): FileOpenResult {
-    console.error("[FileOpenService] Error opening file:", error);
-
     let userMessage = "Failed to open file";
-
     if (error instanceof DOMException && error.name === "AbortError") {
       userMessage = "Operation timed out. File may be too large.";
     } else if (error.message?.includes("decrypt")) {
@@ -465,8 +346,19 @@ export class FileOpenService {
       userMessage = "Permission denied. Check app permissions.";
     } else if (error.message?.includes("MIME")) {
       userMessage = "Unrecognized file format";
+    } else if (error.message?.includes("PDF viewer")) {
+      userMessage = error.message;
+    } else if (
+      error.message?.includes("No app available") ||
+      error.message?.includes("not installed")
+    ) {
+      if (fileName.toLowerCase().endsWith(".pdf")) {
+        userMessage =
+          "No PDF reader app installed. Please install Google PDF Viewer, Adobe Reader, or another PDF app.";
+      } else {
+        userMessage = `No app available to open this file type (${fileName})`;
+      }
     }
-
     return {
       success: false,
       method: "UNSUPPORTED",
@@ -475,34 +367,17 @@ export class FileOpenService {
       error: userMessage,
     };
   }
-
-  /**
-   * Utility: Securely wipe sensitive data
-   * Call when done with decrypted files
-   */
   static async secureWipeData(filePath: string): Promise<void> {
     if (NativeFileOpener.isNativeAvailable()) {
       await NativeFileOpener.securelyWipeFile(filePath);
     }
   }
-
-  /**
-   * Get current config
-   */
   static getConfig(): FileOpenConfig {
     return { ...this.config };
   }
-
-  /**
-   * Update config
-   */
   static updateConfig(updates: Partial<FileOpenConfig>): void {
     this.config = { ...this.config, ...updates };
   }
-
-  /**
-   * Get platform information
-   */
   static getPlatformInfo() {
     return {
       isNative: NativeFileOpener.isNativeAvailable(),
@@ -510,22 +385,13 @@ export class FileOpenService {
       hasFileOpener: NativeFileOpener.isFileOpenerAvailable(),
     };
   }
-
-  /**
-   * Cleanup - call on app shutdown
-   */
   static async cleanup(): Promise<void> {
-    // Cancel all pending operations
     for (const [opId] of this.activeOperations) {
       this.cancelOperation(opId);
     }
-
-    // Clean temp files (older than 1 hour)
     if (NativeFileOpener.isNativeAvailable()) {
       await NativeFileOpener.cleanupTempFiles(60 * 60 * 1000);
     }
-
-    // Clear cache if enabled
     if (this.config.cacheThumbnails) {
       FilePreviewService.secureWipeCache();
     }
